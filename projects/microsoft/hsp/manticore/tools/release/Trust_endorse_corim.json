@@ -1,0 +1,208 @@
+{
+  "corim-id": "Manticore_KeyAttest_1.1.1",
+  "tag-identity":
+  {
+    "id": "109dd698-107a-f0a9-e095-7addb1a59873",
+    "version": 1
+  },
+  "triples":
+  {
+    "conditional-endorsement-series":[
+    {
+        "statefulenv": {
+            "environment": {
+                "class": {
+                    "layer": 0
+                }
+            },
+            "measurements": [
+                {
+                    "value": {
+                        "svn": {
+                            "type": "min-value",
+                            "value": 0 
+                         }
+                        }
+                }
+            ]
+            },
+        "series": [
+            {
+                "selection": [
+                    {
+                        "value": {
+                            "version": {
+                                "value": "3.3.5.0-50701001",
+                                "scheme": 0
+                            }
+                        }
+                    }
+                ],
+                "addition": [
+                    {
+                        "value": {
+                            "tcb-status": "UpToDate"
+                        }
+                    }
+                ]
+            },
+            {
+                "selection": [
+                    {
+                        "value": {
+                            "version": {
+                                "value": "3.4.2.4-50922174",
+                                "scheme": 0
+                            }
+                        }
+                    }
+                ],
+                "addition": [
+                    {
+                        "value": {
+                            "tcb-status": "UpToDate"
+                        }
+                    }
+                ]
+            },
+            {
+                "selection": [
+                    {
+                        "value": {
+                            "svn": {
+                                "type": "min-value",
+                                "value": 1
+                            }
+                        }
+                    }
+                ],
+                "addition": [
+                    {
+                        "value": {
+                            "tcb-status": "UpToDate"
+                        }
+                    }
+                ]
+            },
+            {
+                "selection": [
+                    {
+                        "value": {
+                            "svn": {
+                                "type": "min-value",
+                                "value": 0
+                            }
+                        }
+                    }
+                ],
+                "addition": [
+                    {
+                        "value": {
+                            "tcb-status": "OutOfDate"
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "statefulenv": {
+            "environment": {
+                "class": {
+                    "layer": 1
+                }
+            },
+            "measurements": [
+                {
+                    "value": {
+                        "svn": {
+                            "type": "min-value",
+                            "value": 0
+                        }
+                    }
+                }
+            ]
+        },
+        "series": [
+            {
+                "selection": [
+                    {
+                        "value": {
+                            "version": {
+                                "value": "3.3.5.1-50702174",
+                                "scheme": 0
+                            }
+                        }
+                    }
+                ],
+                "addition": [
+                    {
+                        "value": {
+                            "tcb-status": "UpToDate"
+                        }
+                    }
+                ]
+            },  
+            {
+                "selection": [
+                    {
+                        "value": {
+                            "version": {
+                                "value": "3.4.3.7-51001222",
+                                "scheme": 0
+                            }
+                        }
+                    }
+                ],
+                "addition": [
+                    {
+                        "value": {
+                            "tcb-status": "UpToDate"
+                        }
+                    }
+                ]
+            }, 
+            {
+                "selection": [
+                    {
+                        "value": {
+                            "svn": {
+                                "type": "min-value",
+                                "value": 1
+                            }
+                        }
+                    }
+                ],
+                "addition": [
+                    {
+                        "value": {
+                            "tcb-status": "UpToDate"
+                        }
+                    }
+                ]
+            },
+            {
+                "selection": [
+                    {
+                    "value": {
+                        "svn": {
+                            "type": "min-value",
+                            "value": 0
+                        }
+                    }
+                    }
+                ],
+                "addition": [
+                    {
+                    "value": {
+                        "tcb-status": "OutOfDate"
+                    }
+                    }
+                ]
+            }
+        ]
+    }
+    ]
+  }
+}
+ 

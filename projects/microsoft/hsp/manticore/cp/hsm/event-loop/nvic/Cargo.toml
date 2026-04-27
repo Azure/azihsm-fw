@@ -1,0 +1,19 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-event-loop-nvic"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cfg-if.workspace = true
+mcr-event-loop.workspace = true
+mcr-interrupt-controller.workspace = true
+
+[dev-dependencies]
+mockall.workspace = true
+mockall_double.workspace = true
+mcr-event-loop-derive.workspace = true
+
+[lib]
+doctest = false

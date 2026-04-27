@@ -1,0 +1,414 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+#This yaml file contains all the details of the PCR measurements
+# pmr_id : Platform Measurement Register ID
+# measurement_id : Index of the MeasurementData array
+# img_comp : Firmware image component from where the data to be extracted
+#            It can be :
+#            - null
+#            - root : The root key manifest on the boot image.
+#            - boot : The 1SP boot image.
+#            - keys : The firmware key manifest.
+#            - desc : The firmware descriptor.
+#            - image: The entire image specified in the 'path'
+#
+# offset        : The offset in bytes for the measurement
+# length        : The length in bytes for the measurement
+# path          : The path of file to look for the parameter
+# AllowableData : Contains allowable raw data to be compared
+# Endianness    : Endianess of the raw data
+# Check         : Check type (Equal, NotEqual, LessThan, LessOrEqual, GreaterThan, GreaterOrEqual)
+# Data          : Raw data
+# Bitmask       : Bit Mast to be applied before the check
+
+CFMComponent:
+  '@type': MANTICORE
+  '@attestation_protocol': SPDM
+  '@transcript_hash_type': SHA384
+  '@measurement_hash_type': SHA384
+  '@slot_num': 0
+
+  Measurement:
+
+    # ExtendPCR384 (PCR0, FirmwareBuildVersionNumber)
+    # Build Version parsed from the firmware descriptor
+  - name: SPRTFirmwareBuildVersion
+    '@pmr_id': '0'
+    '@measurement_id': '15'
+    img_comp: desc
+    offset: 23
+    length: 8
+    event_id: 'e1000105'
+    version: '00'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: true
+      Data: null
+      Bitmask: 'ffffffffffffffffffffffffff'
+
+    # ExtendPCR384 (PCR0, DeviceState)
+    # Static value
+  - name: DeviceState
+    '@pmr_id': '0'
+    '@measurement_id': '1'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: false
+      Data: '000000e1000800000000000000010000'
+      Bitmask: 'ffffffffffffffffffffffff00000000'
+
+    # ExtendPCR384 (PCR0, OwnerPublicKey)
+  - name: ROMOwnerPublicKey
+    '@pmr_id': '0'
+    '@measurement_id': '2'
+    img_comp: root
+    offset: 4
+    length: 96
+    event_id: 'e1000001'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR0, KeyManifestSVN)
+    # MANTICORE_1SP_SVN parsed from key manifest header
+  - name: ROMKeyManifestSVN
+    '@pmr_id': '0'
+    '@measurement_id': '3'
+    img_comp: root
+    offset: 200
+    length: 4
+    event_id: 'e1000002'
+    version: '00'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: true
+      Data: null
+      Bitmask: 'ffffffffffffffffff'
+
+    # ExtendPCR384 (PCR0, FirmwarePublicKey)
+    # Firmware Public key from root key manifest
+  - name: ROMFirmwarePublicKey
+    '@pmr_id': '0'
+    '@measurement_id': '5'
+    img_comp: root
+    offset: 256
+    length: 96
+    event_id: 'e1000004'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR0, SecondaryPublicKey)
+    # Secondary Public key from root key manifest
+  - name: ROMSecondaryPublicKey
+    '@pmr_id': '0'
+    '@measurement_id': '6'
+    img_comp: root
+    offset: 352
+    length: 96
+    event_id: 'e1000005'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR0, FirmwareSVN)
+    # MANTICORE_1SP_SVN parsed from 1SP image
+  - name: ROMFirmwareSVN
+    '@pmr_id': '0'
+    '@measurement_id': '7'
+    img_comp: boot
+    offset: 216
+    length: 4
+    event_id: 'e1000007'
+    version: '00'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: true
+      Data: null
+      Bitmask: 'ffffffffffffffffff'
+
+    # ExtendPCR384 (PCR0, FirmwareBuildVersion)
+    # MANTICORE_1SP_BUILD_VERSION parsed from the 1SP image itself
+  - name: ROMFirmwareBuildVersion
+    '@pmr_id': '0'
+    '@measurement_id': '8'
+    img_comp: boot
+    offset: 220
+    length: 8
+    event_id: 'e1000008'
+    version: '00'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: true
+      Data: null
+      Bitmask: 'ffffffffffffffffffffffffff'
+
+    # ExtendPCR384 (PCR0, FirmwareImage)
+    # Digest in the 1SP image header
+  - name: FirmwareImage
+    '@pmr_id': '0'
+    '@measurement_id': '9'
+    img_comp: boot
+    offset: 236
+    length: 48
+    event_id: 'e1000009'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR0, UnlockPolicy)
+    # Default security policy
+    # TODO: Memory fencing value needs to be switched to 0 once fencing is applied.
+  - name: UnlockPolicy
+    '@pmr_id': '0'
+    '@measurement_id': '10'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: false
+      Data: '000100e10001000700000000000000000011101808000000001b0000000000feeaa02fe405cbffe92704000000'
+      Bitmask: 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+
+    # ExtendPCR384 (PCR2, SPFirmwareKeyManifest)
+    # Hash in the Firmware Key Manifest
+  - name: SPRTirmwareKeyManifest
+    '@pmr_id': '0'
+    '@measurement_id': '11'
+    img_comp: keys
+    offset: 224
+    length: 48
+    event_id: 'e1000101'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR0, FirmwareKeyManifestSVN)
+    # MANTICORE_FW_KEYS_SVN parsed from the key manifest header
+  - name: SPRTFirmwareKeyManifestSVN
+    '@pmr_id': '0'
+    '@measurement_id': '12'
+    img_comp: keys
+    offset: 212
+    length: 8
+    event_id: 'e1000102'
+    version: '00'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: true
+      Data: null
+      Bitmask: 'ffffffffffffffffffffffffff'
+
+    # ExtendPCR384 (PCR0, ApplicationPublicKey)
+    # Application Public Key from Firmware Key Manifest
+    # Offset is updated to (272 + 24) to skip 24 byte der header and consider X and Y components
+  - name: SPRTFirmwarePublicKey
+    '@pmr_id': '0'
+    '@measurement_id': '13'
+    img_comp: keys
+    offset: 296
+    length: 96
+    event_id: 'e1000103'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR0, FirmwareSVN)
+    # MANTICORE_FW_SVN parsed from the firmware descriptor
+  - name: SPRTFirmwareSVN
+    '@pmr_id': '0'
+    '@measurement_id': '14'
+    img_comp: desc
+    offset: 31
+    length: 8
+    event_id: 'e1000104'
+    version: '00'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: true
+      Data: null
+      Bitmask: 'ffffffffffffffffffffffffff'
+
+    # ExtendPCR384 (PCR0, SPRTImage)
+  - name: SPRTImage
+    '@pmr_id': '0'
+    '@measurement_id': '16'
+    img_comp: image
+    offset: null
+    length: null
+    event_id: 'e1000106'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR0, AEBStatus)
+    # Static value of aeb_policy[4] in the struct security_policy_hsp_manticore_data
+  - name: AEBStatus
+    '@pmr_id': '0'
+    '@measurement_id': '17'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: false
+      Data: '070100e1000000000011d01938000000001b008003'
+      Bitmask: 'ffffffffffffffffffffffffffffffffffffffffff'
+
+    # ExtendPCR384 (PCR0, AEBLockedStatus)
+    # Static value of aeb_lock[4] in the struct security_policy_hsp_manticore_data
+  - name: AEBLockedStatus
+    '@pmr_id': '0'
+    '@measurement_id': '18'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: false
+      Data: '080100e1000000feeaa02fe405cbffe92704000000'
+      Bitmask: 'ffffffffffffffffffffffffffffffffffffffffff'
+
+    # ExtendPCR384 (PCR0, FirmwareKeyManifestSVN)
+    # Hash in the Firmware Key Manifest
+  - name: SOCFirmwareKeyManifest
+    '@pmr_id': '0'
+    '@measurement_id': '19'
+    img_comp: keys
+    offset: 224
+    length: 48
+    event_id: 'e1000200'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR0, FirmwareKeyManifestSVN)
+    # MANTICORE_FW_KEYS_SVN parsed from the key manifest header
+  - name: SOCFirmwareKeyManifestSVN
+    '@pmr_id': '0'
+    '@measurement_id': '20'
+    img_comp: keys
+    offset: 212
+    length: 8
+    event_id: 'e1000201'
+    version: '00'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: true
+      Data: null
+      Bitmask: 'ffffffffffffffffffffffffff'
+
+    # ExtendPCR384 (PCR0, ApplicationPublicKey)
+    # Application Public Key from Firmware Key Manifest
+    # Offset is updated to (272 + 24) to skip 24 byte der header and consider X and Y components
+  - name: SOCFirmwarePublicKey
+    '@pmr_id': '0'
+    '@measurement_id': '21'
+    img_comp: keys
+    offset: 296
+    length: 96
+    event_id: 'e1000202'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR0, FirmwareSVN)
+    # MANTICORE_FW_SVN parsed from the firmware descriptor
+  - name: SOCFirmwareSVN
+    '@pmr_id': '0'
+    '@measurement_id': '22'
+    img_comp: desc
+    offset: 31
+    length: 8
+    event_id: 'e1000203'
+    version: '00'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: true
+      Data: null
+      Bitmask: 'ffffffffffffffffffffffffff'
+
+    # ExtendPCR384 (PCR0, FirmwareBuildVersion)
+    # Build Version parsed from the firmware descriptor
+  - name: SOCFirmwareBuildVersion
+    '@pmr_id': '0'
+    '@measurement_id': '23'
+    img_comp: desc
+    offset: 23
+    length: 8
+    event_id: 'e1000204'
+    version: '00'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: true
+      Data: null
+      Bitmask: 'ffffffffffffffffffffffffff'
+
+    # ExtendPCR384 (PCR2, CPImage)
+    # The hash of the concat of hash of the sub-images
+  - name: CPImage
+    '@pmr_id': '0'
+    '@measurement_id': '24'
+    img_comp: image
+    offset: null
+    length: null
+    event_id: 'e1000205'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR2, FP0Image)
+    # The hash of the concat of hash of the sub-images
+    # i.e. hash(hash(fps_cpu0.text.bin) + hash(fps_cpu0.data.bin))
+  - name: FP0Image
+    '@pmr_id': '0'
+    '@measurement_id': '25'
+    img_comp: image
+    offset: null
+    length: null
+    event_id: 'e1000206'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR2, FP1Image)
+    # The hash of the concat of hash of the sub-images
+    # i.e. hash(hash(fps_cpu1.text.bin) + hash(fps_cpu1.data.bin))
+  - name: FP1Image
+    '@pmr_id': '0'
+    '@measurement_id': '26'
+    img_comp: image
+    offset: null
+    length: null
+    event_id: 'e1000207'
+    version: '00'
+    path: null
+
+    # ExtendPCR384 (PCR2, FP2Image)
+    # The hash of the concat of hash of the sub-images
+    # i.e. hash(hash(fps_cpu2.text.bin) + hash(fps_cpu2.data.bin))
+  - name: FP2Image
+    '@pmr_id': '0'
+    '@measurement_id': '27'
+    img_comp: image
+    offset: null
+    length: null
+    event_id: 'e1000208'
+    version: '00'
+    path: null
+
+    # PHYImage
+  - name: PHYImage
+    '@pmr_id': '0'
+    '@measurement_id': '28'
+    img_comp: image
+    offset: null
+    length: null
+    event_id: 'e1000209'
+    version: '00'
+    Digest: 'a05e1bd10c706d4160604e299ee19193aba2dddd47a4c2f4a0f989c8790688ef7b0f7e385cefdf5912575d4eb4278c29'
+
+    # Chassis Intrusion status
+  - name: IntrusionStatus
+    '@pmr_id': '0'
+    '@measurement_id': '36'
+    AllowableData:
+      Endianness: 'BigEndian'
+      Check: 'Equal'
+      parse: false
+      Data: '310000e00000'
+      Bitmask: 'ffffffffffff'

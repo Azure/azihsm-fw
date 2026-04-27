@@ -1,0 +1,16 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-queue-controller"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+bitfield-struct.workspace = true
+mcr-error.workspace = true
+mcr-registers.workspace = true
+mcr-types.workspace = true
+seq-macro.workspace = true

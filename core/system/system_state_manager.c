@@ -1,0 +1,140 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include "system_state_manager.h"
+#include "common/unused.h"
+#include "flash/flash_common.h"
+#include "flash/flash_util.h"
+
+
+/* Bitmasks for settings in non-volatile memory. */
+
+/**
+ * Bit indicating which CFM region contains the active CFM, region 0 or 1.  This value is inverted,
+ * since blank flash is 1.
+ */
+#define	ACTIVE_CFM_MASK			(1U << 0)
+
+/**
+ * Bit indicating which PCD region contains the active PCD, region 0 or 1.  This value is inverted,
+ * since blank flash is 1.
+ */
+#define	ACTIVE_PCD_MASK			(1U << 1)
+
+
+int system_state_manager_save_active_manifest (const struct state_manager *manager,
+	uint8_t manifest_index, enum manifest_region active)
+{
+	if (manifest_index == SYSTEM_STATE_MANIFEST_CFM) {
+		return state_manager_save_active_manifest (manager, active, ACTIVE_CFM_MASK);
+	}
+	else if (manifest_index == SYSTEM_STATE_MANIFEST_PCD) {
+		return state_manager_save_active_manifest (manager, active, ACTIVE_PCD_MASK);
+	}
+	else {
+		return STATE_MANAGER_OUT_OF_RANGE;
+	}
+}
+
+enum manifest_region system_state_manager_get_active_manifest (const struct state_manager *manager,
+	uint8_t manifest_index)
+{
+	if (manifest_index == SYSTEM_STATE_MANIFEST_CFM) {
+		return state_manager_get_active_manifest (manager, ACTIVE_CFM_MASK);
+	}
+	else if (manifest_index == SYSTEM_STATE_MANIFEST_PCD) {
+		return state_manager_get_active_manifest (manager, ACTIVE_PCD_MASK);
+	}
+	else {
+		return MANIFEST_REGION_1;
+	}
+}
+
+int system_state_manager_is_manifest_valid (const struct state_manager *manager,
+	uint8_t manifest_index)
+{
+	UNUSED (manager);
+
+	if ((manifest_index != SYSTEM_STATE_MANIFEST_CFM) &&
+		(manifest_index != SYSTEM_STATE_MANIFEST_PCD)) {
+		return STATE_MANAGER_OUT_OF_RANGE;
+	}
+
+	return 0;
+}
+
+int system_state_manager_restore_default_state (const struct state_manager *manager)
+{
+	if (manager == NULL) {
+		return STATE_MANAGER_INVALID_ARGUMENT;
+	}
+
+	platform_mutex_lock (&manager->state->state_lock);
+
+	manager->state->nv_state = 0xffff;
+
+	platform_mutex_unlock (&manager->state->state_lock);
+
+	return 0;
+}
+
+/**
+ * Initialize the manager for system state information.
+ *
+ * @param manager The state manager to initialize.
+ * @param state Variable context for system state management.  This must be uninitialized.
+ * @param state_flash The flash that contains the non-volatile state information.
+ * @param store_addr The starting address for state storage. The state storage uses two contiguous
+ * flash regions of FLASH_SECTOR_SIZE. The start address must be aligned to the start of a flash
+ * sector.
+ *
+ * @return 0 if the state manager was successfully initialized or an error code.
+ */
+int system_state_manager_init (struct state_manager *manager, struct state_manager_state *state,
+	const struct flash *state_flash, uint32_t store_addr)
+{
+	int status;
+
+	if (manager == NULL) {
+		return STATE_MANAGER_INVALID_ARGUMENT;
+	}
+
+	status = state_manager_init (manager, state, state_flash, store_addr);
+
+	if (status == 0) {
+		manager->get_active_manifest = system_state_manager_get_active_manifest;
+		manager->save_active_manifest = system_state_manager_save_active_manifest;
+		manager->restore_default_state = system_state_manager_restore_default_state;
+		manager->is_manifest_valid = system_state_manager_is_manifest_valid;
+	}
+
+	return status;
+}
+
+/**
+ * Initialize only the variable state of a manager for system state information.  The rest of the
+ * instance is assumed to already have been initialized.
+ *
+ * This would generally be used with a statically initialized instance.
+ *
+ * @param manager The state manager that contains the state to initialize.
+ *
+ * @return 0 if the state was successfully initialized or an error code.
+ */
+int system_state_manager_init_state (const struct state_manager *manager)
+{
+	return state_manager_init_state (manager);
+}
+
+/**
+ * Release the resources used by the host state manager.
+ *
+ * @param manager The state manager to release.
+ */
+void system_state_manager_release (const struct state_manager *manager)
+{
+	state_manager_release (manager);
+}

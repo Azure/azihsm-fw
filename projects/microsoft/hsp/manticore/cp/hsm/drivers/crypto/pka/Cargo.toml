@@ -1,0 +1,30 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-crypto-pka"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cortex-m.workspace = true
+mcr-crypto-sha.workspace = true
+mcr-ddi-mbor.workspace = true
+mcr-error.workspace = true
+mcr-interrupt-controller.workspace = true
+mcr-mem-map.workspace = true
+mcr-registers.workspace = true
+mcr-self-test.workspace = true
+mcr-soc.workspace = true
+mcr-tcon.workspace = true
+mcr-types.workspace = true
+open-enum.workspace = true
+seq-macro.workspace = true
+ureg.workspace = true
+zerocopy.workspace = true
+zeroize.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+fips_validation_hooks = []

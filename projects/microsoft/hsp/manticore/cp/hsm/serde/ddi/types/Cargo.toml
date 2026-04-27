@@ -1,0 +1,39 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-ddi-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mcr-ddi-derive.workspace = true
+mcr-ddi-mbor.workspace = true
+open-enum.workspace = true
+paste.workspace = true
+zerocopy.workspace = true
+
+# dependencies for fuzzing
+arbitrary = { workspace = true, optional = true }
+
+# dependencies for pre_encode and/or post_decode
+tracing = { workspace = true, optional = true }
+spki = { workspace = true, optional = true }
+sec1 = { workspace = true, optional = true }
+p256 = { workspace = true, optional = true }
+p384 = { workspace = true, optional = true }
+p521 = { workspace = true, optional = true }
+rsa = { workspace = true, optional = true }
+
+[dev-dependencies]
+minicbor.workspace = true
+openssl.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+fuzzing = ["arbitrary", "mcr-ddi-mbor/fuzzing"]
+array = ["mcr-ddi-mbor/array"]
+pre_encode = ["featuregroup-crypto", "tracing", "mcr-ddi-mbor/pre_encode"]
+post_decode = ["featuregroup-crypto", "tracing", "mcr-ddi-mbor/post_decode"]
+featuregroup-crypto = ["rsa", "spki", "sec1", "p256", "p384", "p521"]

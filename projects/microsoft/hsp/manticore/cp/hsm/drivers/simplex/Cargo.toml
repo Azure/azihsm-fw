@@ -1,0 +1,14 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-simplex"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+cortex-m.workspace = true
+mcr-error.workspace = true
+mcr-types.workspace = true

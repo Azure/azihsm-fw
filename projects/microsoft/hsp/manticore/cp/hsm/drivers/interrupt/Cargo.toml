@@ -1,0 +1,15 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-interrupt-controller"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mcr-error.workspace = true
+cortex-m.workspace = true
+cortex-m-rt.workspace = true
+mcr-registers.workspace = true
+
+[lib]
+doctest = false

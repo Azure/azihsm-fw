@@ -1,0 +1,32 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "sha-tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cortex-m.workspace = true
+cortex-m-rt.workspace = true
+embedded-alloc.workspace = true
+mcr-crypto-sha.workspace = true
+mcr-ddi-mbor.workspace = true
+mcr-error.workspace = true
+mcr-interrupt-controller.workspace = true
+mcr-test-harness.workspace = true
+mcr-types.workspace = true
+mcr-uart.workspace = true
+zeroize.workspace=true
+
+[features]
+# This feature is used to filter all these binary targets during normal builds
+# (targets must be built with cargo arguments:
+#     --target thumbv7em-none-eabihf \
+#     --profile=firmware \
+#     --features arm
+arm = ["mcr-test-harness/arm"]
+
+[[bin]]
+name = "sha-tests"
+path = "src/sha_tests.rs"
+required-features = ["arm"]

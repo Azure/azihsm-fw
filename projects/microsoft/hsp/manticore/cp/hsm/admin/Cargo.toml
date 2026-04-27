@@ -1,0 +1,80 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-admin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bit-vec.workspace = true
+bitfield-struct.workspace = true
+bitfield.workspace = true
+cfg-if.workspace = true
+cortex-m-rt.workspace = true
+cortex-m.workspace = true
+embedded-alloc.workspace = true
+hashbrown.workspace = true
+lazy_static.workspace = true
+log.workspace = true
+mcr-alloc.workspace = true
+mcr-cpu.workspace = true
+mcr-crashdump.workspace = true
+mcr-crypto-cdma-io.workspace = true
+mcr-crypto-rng.workspace = true
+mcr-crypto-softaes.workspace = true
+mcr-ddi-types.workspace = true
+mcr-doe.workspace = true
+mcr-dtcm-controller.workspace = true
+mcr-error.workspace = true
+mcr-event-loop-derive.workspace = true
+mcr-event-loop-nvic.workspace = true
+mcr-event-loop.workspace = true
+mcr-exception-handlers.workspace = true
+mcr-gdma-controller.workspace = true
+mcr-gsram-controller.workspace = true
+mcr-ide.workspace = true
+mcr-interrupt-controller.workspace = true
+mcr-io-controller.workspace = true
+mcr-ipc-controller.workspace = true
+mcr-ipc-message.workspace = true
+mcr-itcm-controller.workspace = true
+mcr-logger.workspace = true
+mcr-logging-derive.workspace = true
+mcr-logging.workspace = true
+mcr-log-tokens.workspace = true
+mcr-mailbox-controller.workspace = true
+mcr-mem-map.workspace = true
+mcr-msix-controller.workspace = true
+mcr-pcie-controller.workspace = true
+mcr-queue-controller.workspace = true
+mcr-self-test.workspace = true
+mcr-simplex.workspace = true
+mcr-soc.workspace = true
+mcr-tcon.workspace = true
+mcr-types.workspace = true
+mockall_double.workspace = true
+open-enum.workspace = true
+static_assertions.workspace = true
+zerocopy.workspace = true
+zeroize.workspace = true
+
+[build-dependencies]
+cfg-if.workspace = true
+
+[dev-dependencies]
+env_logger.workspace = true
+mockall.workspace = true
+test-log.workspace = true
+hex-literal.workspace = true
+
+[features]
+default = ["std"]
+disable_uart_log = ["mcr-logger/disable_output"]
+std = ["disable_uart_log", "mcr-exception-handlers/std"]
+idfu_fault_pre_reset_admin_shutdown_ipc_resp_err = []
+idfu_fault_pre_reset_admin_shutdown_ipc_no_resp_err = []
+idfu_fault_pre_reset_admin_drain_timeout = []
+fips_validation_hooks = ["mcr-crypto-softaes/fips_validation_hooks", "mcr-soc/fips_validation_hooks"]
+log_level_info = []
+mcr_manual_test_hooks = []
+mcr_test_hooks = []

@@ -1,0 +1,27 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-gdma-controller"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mcr-registers.workspace = true
+mcr-types.workspace = true
+mcr-controller.workspace = true
+mcr-interrupt-controller.workspace = true
+mcr-error.workspace = true
+bitfield-struct.workspace = true
+bitfield.workspace = true
+cortex-m.workspace = true
+mcr-cpu.workspace = true
+mcr-ddi-types.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+# Feature switches used for optional test hooks and validation
+mcr_test_hooks = []

@@ -1,0 +1,22 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-types"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+bitfield-struct.workspace = true
+bitfield.workspace = true
+mcr-alloc.workspace = true
+mcr-cpu.workspace = true
+mcr-ddi-mbor.workspace = true
+mcr-ddi-types.workspace = true
+open-enum.workspace = true
+seq-macro.workspace = true
+static_assertions.workspace = true
+zerocopy.workspace = true
+zeroize.workspace = true

@@ -1,0 +1,11 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-controller"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[lib]
+doctest = false

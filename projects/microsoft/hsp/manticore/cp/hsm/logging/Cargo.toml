@@ -1,0 +1,26 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-logging"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hashbrown.workspace = true
+lazy_static.workspace = true
+log.workspace = true
+cortex-m-rt.workspace = true
+cortex-m.workspace = true
+mcr-cpu.workspace = true
+mcr-error.workspace = true
+mcr-log-tokens.workspace = true
+mcr-logging-derive.workspace = true
+mcr-mem-map.workspace = true
+mcr-simplex.workspace = true
+mcr-types.workspace = true
+
+[dev-dependencies]
+mockall.workspace = true
+
+[lib]
+doctest = false

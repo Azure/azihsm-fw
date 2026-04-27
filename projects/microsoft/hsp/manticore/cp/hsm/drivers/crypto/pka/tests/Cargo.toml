@@ -1,0 +1,31 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "pka-tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cortex-m-rt.workspace = true
+cortex-m.workspace = true
+embedded-alloc.workspace = true
+mcr-types.workspace = true
+mcr-cpu.workspace = true
+mcr-crypto-pka.workspace = true
+mcr-error.workspace = true
+mcr-interrupt-controller.workspace = true
+mcr-registers.workspace = true
+mcr-test-harness.workspace = true
+
+[features]
+# This feature is used to filter all these binary targets during normal builds
+# (targets must be built with cargo arguments:
+#     --target thumbv7em-none-eabihf \
+#     --profile=firmware \
+#     --features arm
+arm = ["mcr-test-harness/arm"]
+
+[[bin]]
+name = "pka-tests"
+path = "src/pka_tests.rs"
+required-features = ["arm"]

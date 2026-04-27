@@ -1,0 +1,12 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-mem-log"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mcr-error.workspace = true
+
+[lib]
+doctest = false

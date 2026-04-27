@@ -1,0 +1,22 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-crypto-cdma-io"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+bitfield-struct.workspace = true
+bitfield.workspace = true
+log.workspace = true
+mcr-cpu.workspace = true
+mcr-error.workspace = true
+mcr-interrupt-controller.workspace = true
+mcr-mem-map.workspace = true
+mcr-registers.workspace = true
+mcr-types.workspace = true
+zeroize.workspace = true
+zerocopy.workspace = true

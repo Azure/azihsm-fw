@@ -1,0 +1,22 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-ipc-controller"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zerocopy.workspace = true
+seq-macro.workspace = true
+bitfield-struct.workspace = true
+cortex-m.workspace = true
+mcr-controller.workspace = true
+mcr-error.workspace = true
+mcr-interrupt-controller.workspace = true
+mcr-registers.workspace = true
+mcr-types.workspace = true
+
+[lib]
+doctest = false

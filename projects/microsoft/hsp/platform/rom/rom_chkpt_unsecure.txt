@@ -1,0 +1,27 @@
+#  rpramnx       spramnx   writelockmpu   disablecrypto     disablekeys
+#  keepspinhalt  aeblock   noexpiration   privstopallowed   userstopallowed
+#    CREG_REGS_CHKPT_FEN_P_ADDRESS             0x00000003
+#
+# 0x02000000 is around 50 milliseconds with 500 mhz
+#
+# ID: 0 == SP, 1 == RP
+# ADDR: 0x8f0000ec == Athena/Openhsp, 0 == Pioneer
+#
+
+CHKPT_ID        0
+CHKPT_ADDR      0
+CHKPT_ROMSECRET 1
+
+CHECKPOINT                                  ROM_CHECKPOINT_UNSECURE_INIT
+    DIGEST
+    TIMER_IV0                               0x00000000
+    TIMER_IV1                               0x00000001
+    ENABLE_FEN                              noexpiration privstopallowed userstopallowed
+    CREG_REGS_CHKPT_CTRL_P_ADDRESS          0x00000000
+
+CHECKPOINT                                  ROM_CHECKPOINT_UNSECURE_FINISH
+    DIGEST
+    TIMER_IV0                               0x00000000
+    TIMER_IV1                               0x00000001
+    ENABLE_FEN                              noexpiration privstopallowed userstopallowed
+    CREG_REGS_CHKPT_CTRL_P_ADDRESS          0x00000000

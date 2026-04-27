@@ -1,0 +1,15 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-event-loop-derive"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+doctest = false
+
+[dependencies]
+darling.workspace = true
+syn.workspace = true
+quote.workspace = true

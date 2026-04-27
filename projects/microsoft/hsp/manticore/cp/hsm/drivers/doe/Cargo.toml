@@ -1,0 +1,19 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-doe"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cortex-m.workspace = true
+mcr-cpu.workspace = true
+mcr-error.workspace = true
+mcr-registers.workspace = true
+mcr-types.workspace = true
+zeroize.workspace = true
+
+[lib]
+doctest = false

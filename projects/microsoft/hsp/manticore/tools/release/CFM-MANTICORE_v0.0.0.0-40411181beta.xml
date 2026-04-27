@@ -1,0 +1,153 @@
+<CFMComponent type="MANTICORE" attestation_protocol="SPDM" transcript_hash_type="SHA384" measurement_hash_type="SHA384" slot_num="0">
+	<MeasurementData pmr_id="0" measurement_id="15">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>050100e10000000000a305144d</Data>
+			<Bitmask>ffffffffffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<MeasurementData pmr_id="0" measurement_id="1">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>000000e10008000000000000</Data>
+			<Bitmask>ffffffffffffffff00000000</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<Measurement pmr_id="0" measurement_id="2">
+		<Digest>bf2fdd6420e9634dc4ae12d0b800097cab054668b6880f03139bae4845ab0d496482c3de8196b08f62957fabad3f4a1f</Digest>
+	</Measurement>
+	<MeasurementData pmr_id="0" measurement_id="3">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>020000e10000000000</Data>
+			<Bitmask>ffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<Measurement pmr_id="0" measurement_id="5">
+		<Digest>6dc99ed528c582046293e5e6d2a6c7449f3d939047695eb359a87b1b0803b50926e9a3ede2085e3603d7835f7abff031</Digest>
+	</Measurement>
+	<Measurement pmr_id="0" measurement_id="6">
+		<Digest>35f0087355b77cc827c92c6333111f5ea726666967744b2dd165354f20973f849bf2668f8f1791a6961a7acb9dc22f6f</Digest>
+	</Measurement>
+	<MeasurementData pmr_id="0" measurement_id="7">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>070000e10000000000</Data>
+			<Bitmask>ffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<MeasurementData pmr_id="0" measurement_id="8">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>080000e10002030003e0230f4d</Data>
+			<Bitmask>ffffffffffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<Measurement pmr_id="0" measurement_id="9">
+		<Digest>194329ce938bda3aaa4a3ae9675ed1b8c675c05ddf691f0679256e97f92fc5da17141bb152d3c73ca243180430a51838</Digest>
+	</Measurement>
+	<MeasurementData pmr_id="0" measurement_id="10">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>000100e10000000000000000000000000000000000000000000000000000000000000000000000000000000000</Data>
+			<Bitmask>ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<Measurement pmr_id="0" measurement_id="11">
+		<Digest>62dee15c71fd6734700cd959d87380dd82fd5a389beac0db306272e047b3d4c6c7199f710d9d61968d8fd0c63f61c83b</Digest>
+	</Measurement>
+	<MeasurementData pmr_id="0" measurement_id="12">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>020100e1000000000000000000</Data>
+			<Bitmask>ffffffffffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<Measurement pmr_id="0" measurement_id="13">
+		<Digest>c9d8fd6650c9e0a87763a65c6a6323fbad93b0f8e09dc38fe1fe7bd2d95cbfd8019aee20750095d47cd3ae1db1b13fe3</Digest>
+	</Measurement>
+	<MeasurementData pmr_id="0" measurement_id="14">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>040100e1000000000000000000</Data>
+			<Bitmask>ffffffffffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<Measurement pmr_id="0" measurement_id="16">
+		<Digest>fd0a6161268fd1a489a15ab69b25632b5e614043b8c87647ef36f8054f887651e38f3f180fda10e8ca1f694b4b69fa3d</Digest>
+	</Measurement>
+	<MeasurementData pmr_id="0" measurement_id="17">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>070100e1000000000011101808000000001b000000</Data>
+			<Bitmask>ffffffffffffffffffffffffffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<MeasurementData pmr_id="0" measurement_id="18">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>080100e1000000feeaa02fe405cbffe92704000000</Data>
+			<Bitmask>ffffffffffffffffffffffffffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<Measurement pmr_id="0" measurement_id="19">
+		<Digest>2548a9e3f175480fd48e9fb408fef8d847e115fd09cfc996e0e47ceb1c2451b40a019d234daa1cb1b7be3a67da5b18dc</Digest>
+	</Measurement>
+	<MeasurementData pmr_id="0" measurement_id="20">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>010200e1000000000000000000</Data>
+			<Bitmask>ffffffffffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<Measurement pmr_id="0" measurement_id="21">
+		<Digest>a093d3e5e98c600b2b27e19473c042714d9e6ea9f3a19ea52f0254df129d895c906bca8879a97eed0dcaeafea57610b8</Digest>
+	</Measurement>
+	<MeasurementData pmr_id="0" measurement_id="22">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>030200e1000000000000000000</Data>
+			<Bitmask>ffffffffffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<MeasurementData pmr_id="0" measurement_id="23">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>040200e10000000000a305144d</Data>
+			<Bitmask>ffffffffffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+	<Measurement pmr_id="0" measurement_id="24">
+		<Digest>4ce7c99fc4a2222859e49c4b5e4178ef2117a86f575173d464b63d802605313389242decb5fb6b094ecf8cd2d49660c6</Digest>
+	</Measurement>
+	<Measurement pmr_id="0" measurement_id="25">
+		<Digest>a4da2ddc5f81ef5b171878008d4b9cb7516b6ec7dc3525ccc920d9afc47635ede8d5755042556869466e4c46bf5dab74</Digest>
+	</Measurement>
+	<Measurement pmr_id="0" measurement_id="26">
+		<Digest>71bd7deb05021225c4f091398c8aa04e9529a6039730629191f5a6142d8e72a067d5a6fece0004221f05e107be06dfdb</Digest>
+	</Measurement>
+	<Measurement pmr_id="0" measurement_id="27">
+		<Digest>6c1ace12739dbd423b1b59593c5e0d21b52f3c276a1d7ec7688a63ef0f86e776d8477406ed879602a7f4cd3030fc8ac8</Digest>
+	</Measurement>
+	<MeasurementData pmr_id="0" measurement_id="36">
+		<AllowableData>
+			<Endianness>BigEndian</Endianness>
+			<Check>Equal</Check>
+			<Data>310000e00000000000</Data>
+			<Bitmask>ffffffffffffffffff</Bitmask>
+		</AllowableData>
+	</MeasurementData>
+</CFMComponent>

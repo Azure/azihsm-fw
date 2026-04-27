@@ -1,0 +1,39 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-exception-handlers"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cfg-if.workspace = true
+cortex-m-rt.workspace = true
+cortex-m.workspace = true
+embedded-alloc.workspace = true
+log.workspace = true
+mcr-alloc.workspace = true
+mcr-cpu.workspace = true
+mcr-crashdump.workspace = true
+mcr-gdma-controller.workspace = true
+mcr-gsram-controller.workspace = true
+mcr-interrupt-controller.workspace = true
+mcr-io-controller.workspace = true
+mcr-logger.workspace = true
+mcr-logging.workspace = true
+mcr-logging-derive.workspace = true
+mcr-mailbox-controller.workspace = true
+mcr-mem-log.workspace = true
+mcr-mem-map.workspace = true
+mcr-soc.workspace = true
+mcr-tcon.workspace = true
+mcr-types.workspace = true
+
+[build-dependencies]
+cfg-if.workspace = true
+
+[features]
+default = []
+std = []
+
+[lib]
+doctest = false
