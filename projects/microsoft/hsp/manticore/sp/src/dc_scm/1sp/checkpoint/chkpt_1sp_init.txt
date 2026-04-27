@@ -1,0 +1,119 @@
+#  rpramnx       spramnx   writelockmpu   disablecrypto     disablekeys
+#  keepspinhalt  aeblock   noexpiration   privstopallowed   userstopallowed
+#    CREG_REGS_CHKPT_FEN_P_ADDRESS             0x00000003
+#
+# 0x02000000 is around 50 milliseconds with 500 mhz
+# 0x70000000 is just over 5 seconds at 375MHz
+# 0x165a0bc0 is 1 second at 375MHz
+# 0x2cb41780 is 2 seconds at 375MHz
+#
+# ID: 0 == SP, 1 == RP
+# ADDR: 0x8f0000ec == Athena/Openhsp, 0 == Pioneer
+#
+
+CHKPT_ID        0
+CHKPT_ADDR      0
+CHKPT_ROMSECRET 0
+
+CHECKPOINT                                  MANTICORE_1SP_CHECKPOINT_START
+    DIGEST
+    TIMER_IV0                               0x20000000
+    TIMER_IV1                               0x00000000
+    ENABLE_FEN                              writelockmpu disablecrypto aeblock
+    CREG_REGS_CHKPT_CTRL_P_ADDRESS          0x00000000
+
+CHECKPOINT                                  MANTICORE_1SP_CHECKPOINT_ENABLE_CRYPTO
+    DIGEST
+    TIMER_IV0                               0x20000000
+    TIMER_IV1                               0x00000000
+    ENABLE_FEN                              writelockmpu aeblock
+    CREG_REGS_CHKPT_CTRL_P_ADDRESS          0x00000001
+
+CHECKPOINT                                  MANTICORE_1SP_CHECKPOINT_SILICON_ERRATA
+    MSG                                     0x00000001
+    MSG                                     0x00000002
+    MSG                                     0x00000003
+    MSG                                     0x00000004
+    DIGEST
+    TIMER_IV0                               0x20000000
+    TIMER_IV1                               0x00000000
+    ENABLE_FEN                              writelockmpu
+    CREG_REGS_CHKPT_CTRL_P_ADDRESS          0x00000001
+
+CHECKPOINT                                  MANTICORE_1SP_CHECKPOINT_SILICON_ERRATA_DONE
+    DIGEST
+    TIMER_IV0                               0x20000000
+    TIMER_IV1                               0x00000000
+    ENABLE_FEN                              writelockmpu aeblock
+    CREG_REGS_CHKPT_CTRL_P_ADDRESS          0x00000001
+
+CHECKPOINT                                  MANTICORE_1SP_CHECKPOINT_CONFIG_1SP_MPU
+    MSG                                     0x00000005
+    MSG                                     0x00000006
+    MSG                                     0x00000007
+    MSG                                     0x00000008
+    MSG                                     0x00000009
+    MSG                                     0x0000000a
+    MSG                                     0x0000000b
+    MSG                                     0x0000000c
+    MSG                                     0x0000000d
+    MSG                                     0x0000000e
+    MSG                                     0x0000000f
+    MSG                                     0x00000010
+    MSG                                     0x00000011
+    MSG                                     0x00000012
+    MSG                                     0x00000013
+    MSG                                     0x00000014
+    MSG                                     0x00000015
+    MSG                                     0x00000016
+    DIGEST
+    TIMER_IV0                               0x20000000
+    TIMER_IV1                               0x00000000
+    ENABLE_FEN                              aeblock
+    CREG_REGS_CHKPT_CTRL_P_ADDRESS          0x00000001
+
+CHECKPOINT                                  MANTICORE_1SP_CHECKPOINT_CONFIG_1SP_MPU_DONE
+    MSG                                     0x00000017
+    MSG                                     0x00101b01
+    MSG                                     0x00101b02
+    MSG                                     0x00101b03
+    MSG                                     0x00101b04
+    MSG                                     0x00101b05
+    MSG                                     0x00000018
+    MSG                                     0x00000000
+    DIGEST
+    TIMER_IV0                               0x20000000
+    TIMER_IV1                               0x00000000
+    ENABLE_FEN                              writelockmpu aeblock
+    CREG_REGS_CHKPT_CTRL_P_ADDRESS          0x00000001
+
+CHECKPOINT                                  MANTICORE_1SP_CHECKPOINT_INIT_DONE
+    MSG                                     0x00000019
+    MSG                                     0x00201003
+    MSG                                     0x00201001
+    MSG                                     0x00201002
+    MSG                                     0x00201001
+    MSG                                     0x00201002
+    MSG                                     0x00201001
+    MSG                                     0x00201002
+    MSG                                     0x00201004
+    MSG                                     0x00201005
+    MSG                                     0x0000001a
+    MSG                                     0x0000001b
+    MSG                                     0x0000001c
+    MSG                                     0x0000001d
+    MSG                                     0x00201006
+    MSG                                     0x00201007
+    MSG                                     0x0000001e
+    MSG                                     0x0000001f
+    MSG                                     0x00000020
+    MSG                                     0x00000021
+    MSG                                     0x00000022
+    MSG                                     0x00000000
+    MSG                                     0x11112222
+    MSG                                     0x33334444
+    DIGEST
+    TIMER_IV0                               0x20000000
+    TIMER_IV1                               0x00000000
+    ENABLE_FEN                              writelockmpu aeblock
+    CREG_REGS_CHKPT_CTRL_P_ADDRESS          0x00000000

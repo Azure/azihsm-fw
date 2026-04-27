@@ -1,0 +1,234 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[workspace]
+resolver = "2"
+exclude = ["vendored/cortex-m"]
+
+members = [
+  "admin",
+  "alloc",
+  "cpu",
+  "crashdump",
+  "drivers",
+  "drivers/cdma",
+  "drivers/crypto/aes",
+  "drivers/crypto/aes/tests",
+  "drivers/crypto/cdma_io",
+  "drivers/crypto/pka",
+  "drivers/crypto/pka/tests",
+  "drivers/crypto/rng",
+  "drivers/crypto/rng/tests",
+  "drivers/crypto/sha",
+  "drivers/crypto/sha/tests",
+  "drivers/crypto/softaes",
+  "drivers/crypto/softaes/tests",
+  "drivers/doe",
+  "drivers/dtcm",
+  "drivers/gdma",
+  "drivers/gsram",
+  "drivers/ide",
+  "drivers/interrupt",
+  "drivers/io",
+  "drivers/ipc",
+  "drivers/itcm",
+  "drivers/logger",
+  "drivers/mailbox",
+  "drivers/msix",
+  "drivers/pcie",
+  "drivers/queue",
+  "drivers/simplex",
+  "drivers/soc",
+  "drivers/tcon",
+  "drivers/uart",
+  "error",
+  "event-loop",
+  "event-loop/derive",
+  "event-loop/nvic",
+  "exception-handlers",
+  "hsm",
+  "logging",
+  "logging/derive",
+  "mem-log",
+  "mem-map",
+  "mem-map/derive",
+  "profiler",
+  "reg/mcr",
+  "reg/ureg",
+  "self-test",
+  "serde/ddi/derive",
+  "serde/ddi/mbor",
+  "serde/ddi/types",
+  "serde/ipc",
+  "test/harness",
+  "types",
+  "xtask/",
+]
+
+[workspace.dependencies]
+
+# ureg crates
+ureg = { path = "reg/ureg" }
+
+# Manticore Register Crates
+mcr-registers = { path = "reg/mcr" }
+
+# Manticore Common Crates
+mcr-alloc = { path = "alloc" }
+mcr-error = { path = "error" }
+mcr-types = { path = "types" }
+mcr-cpu = { path = "cpu" }
+mcr-admin = { path = "admin" }
+mcr-hsm = { path = "hsm" }
+mcr-exception-handlers = { path = "exception-handlers" }
+
+# Manticore Event Loop
+mcr-event-loop = { path = "event-loop" }
+mcr-event-loop-nvic = { path = "event-loop/nvic" }
+mcr-event-loop-derive = { path = "event-loop/derive" }
+
+# Manticore Drivers
+mcr-cdma = { path = "drivers/cdma" }
+mcr-controller = { path = "drivers" }
+mcr-crypto-aes = { path = "drivers/crypto/aes" }
+mcr-crypto-cdma-io = { path = "drivers/crypto/cdma_io" }
+mcr-crypto-pka = { path = "drivers/crypto/pka" }
+mcr-crypto-rng = { path = "drivers/crypto/rng" }
+mcr-crypto-sha = { path = "drivers/crypto/sha" }
+mcr-crypto-softaes = { path = "drivers/crypto/softaes" }
+mcr-doe = { path = "drivers/doe" }
+mcr-dtcm-controller = { path = "drivers/dtcm" }
+mcr-gdma-controller = { path = "drivers/gdma" }
+mcr-gsram-controller = { path = "drivers/gsram" }
+mcr-ide = { path = "drivers/ide" }
+mcr-interrupt-controller = { path = "drivers/interrupt" }
+mcr-io-controller = { path = "drivers/io" }
+mcr-ipc-controller = { path = "drivers/ipc" }
+mcr-itcm-controller = { path = "drivers/itcm" }
+mcr-mailbox-controller = { path = "drivers/mailbox" }
+mcr-msix-controller = { path = "drivers/msix" }
+mcr-pcie-controller = { path = "drivers/pcie" }
+mcr-queue-controller = { path = "drivers/queue" }
+mcr-simplex = { path = "drivers/simplex" }
+mcr-soc = { path = "drivers/soc" }
+mcr-tcon = { path = "drivers/tcon" }
+mcr-uart = { path = "drivers/uart" }
+
+# Manticore Serializer & Deserializer
+mcr-ipc-message = { path = "serde/ipc" }
+mcr-ddi-derive = { path = "serde/ddi/derive" }
+mcr-ddi-types = { path = "serde/ddi/types" }
+mcr-ddi-mbor = { path = "serde/ddi/mbor" }
+
+# Manticore Memory Logger
+mcr-mem-log = { path = "mem-log" }
+
+# Manticore Crashdump
+mcr-crashdump = { path = "crashdump" }
+
+# Manticore Memory Map
+mcr-mem-map = { path = "mem-map" }
+mcr-mem-map-derive = { path = "mem-map/derive" }
+
+# Manticore Profiler
+mcr-profiler = { path = "profiler" }
+
+# Manticore Logger
+mcr-logger = { path = "drivers/logger" }
+
+# Manticore logging
+mcr-log-tokens = { path = "logging/log-tokens" }
+mcr-logging = { path = "logging" }
+mcr-logging-derive = { path = "logging/derive" }
+
+# Manticore Self Test
+mcr-self-test = { path = "self-test" }
+
+# Manticore Test Harness
+mcr-test-harness = { path = "test/harness" }
+
+# crates.io
+anyhow = "1.0.70"
+arbitrary = { version = "1", features = ["derive"] }
+bitfield = "0.14.0"
+bitfield-struct = "0.3"
+bitflags = "2.0.1"
+bit-vec = { version = "0.6.3", default-features = false }
+cc = "1.0.79"
+cfg-if = "1.0.0"
+clap = { version = "3.2.14", default-features = false, features = ["std"] }
+colored = "2.1.0"
+convert_case = "0.6.0"
+cortex-m = { version = "0.7.3", features = [
+  "cm7-r0p1",
+  "critical-section-single-core",
+] }
+cortex-m-rt = { version = "0.7.3", features = ["disable-data-copy", "device"] }
+crc32fast = { version = "1.3", default-features = false }
+darling = "0.20.11"
+embedded-alloc = "0.6.0"
+enum-iterator = "1.4.0"
+env_logger = "0.10.0"
+getset = "0.1.2"
+hashbrown = "0.15"
+hex = { version = "0.4", default-features = false }
+hex-literal = "0.4.1"
+lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+linked_list_allocator = "0.10.5"
+log = { version = "0.4.19", features = ["max_level_trace", "release_max_level_info"] }
+minicbor = { version = "0.19.1", features = ["derive"] }
+mockall = "0.11.4"
+mockall_double = "0.3.0"
+open-enum = "0.3.0"
+panic-halt = "0.2.0"
+paste = "1.0.14"
+proc-macro2 = "1.0.18"
+quote = "1.0"
+rand = "0.8.5"
+regex = "1.8.1"
+seq-macro = "0.3.3"
+static_assertions = "1.1.0"
+syn = { version = "2.0.117", features = ["full", "visit", "visit-mut"] }
+test-log = "0.2.12"
+trybuild = { version = "1.0.82", features = ["diff"] }
+xml-rs = "0.8.4"
+zerocopy = { version = "0.8.17", features = ["derive"] }
+zeroize = "1.6.0"
+x509-parser = "0.15.0"
+xtask = "0.1.0"
+asn1 = { version = "0.15", default-features = false }
+openssl = { version = "0.10.57" }
+hmac = { version = "0.12.1" }
+sha2 = { version = "0.10.8" }
+libc = "0.2"
+walkdir = "2.5.0"
+
+# Optional crates not used by firmware
+# Needed to specify for compilation of serde
+# as the crate is identical on host/ firmware
+p256 = { version = "0.13.2", features = ["pkcs8"] }
+p384 = { version = "0.13.0", features = ["pkcs8"] }
+p521 = { version = "0.13.3", features = ["pkcs8"] }
+rsa = { version = "0.9.7", features = ["hazmat"] }
+sec1 = { version = "0.7.3", features = ["pkcs8"] }
+spki = "0.7.3"
+tracing = "0.1"
+
+[patch.crates-io]
+cortex-m = { path = "vendored/cortex-m" }
+cortex-m-rt = { path = "vendored/cortex-m/cortex-m-rt" }
+
+[profile.firmware]
+inherits = "release"
+panic = "abort"
+lto = true
+opt-level = 3
+codegen-units = 1
+# Adds symbolic debug info and may slightly change how LLVM inlines or tracks function boundaries.
+debug = true
+
+[profile.firmware_dev]
+inherits = "dev"
+panic = "unwind"
+lto = false
+opt-level = 'z'
+codegen-units = 1

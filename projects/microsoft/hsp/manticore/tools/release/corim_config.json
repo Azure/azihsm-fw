@@ -1,0 +1,95 @@
+{
+    "corim-id": "Manticore_KeyAttest_1.1.1",
+    "tag-identity": {
+        "id": "109dd698-107a-f0a9-e095-7addb1a59873",
+        "version": 1
+    },
+    "triples": {
+        "reference-values": [
+            {
+                "environment": {
+                    "class": {
+                        "layer": 0
+                    }
+                },
+                "measurements": [
+                    {
+                        "value": {
+                            "version": {
+                                "value": "1.0.0",
+                                "scheme": 0
+                            },
+                            "svn": {
+                                "type": "exact-value",
+                                "value": 0
+                            },
+                            "integrity-registers":{
+                                "FW": {
+                                    "key-type":"text",
+                                    "value":[
+                                        "sha-384;"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            {
+                "environment": {
+                    "class": {
+                        "layer": 1
+                    }
+                },
+                "measurements": [
+                    {
+                        "value": {
+                            "version": {
+                                "value": "1.0.0",
+                                "scheme": 0
+                            },
+                            "svn": {
+                                "type": "exact-value",
+                                "value": 0
+                            },
+                            "digests": [
+                                "sha-384;"
+                            ],
+                            "integrity-registers":{
+                                "RoT": {
+                                    "key-type":"text",
+                                    "value":[
+                                        "sha-384;"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "value": {
+                            "version": {
+                                "value": "1.0.0",
+                                "scheme": 0
+                            },
+                            "svn": {
+                                "type": "exact-value",
+                                "value": 0
+                            },
+                            "digests": [
+                                "sha-384;"
+                            ],
+                            "integrity-registers":{
+                                "RoT": {
+                                    "key-type":"text",
+                                    "value":[
+                                        "sha-384;"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}

@@ -1,0 +1,26 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-crashdump"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log.workspace = true
+cortex-m-rt.workspace = true
+cortex-m.workspace = true
+mcr-cpu.workspace = true
+zerocopy.workspace = true
+mcr-ddi-types.workspace = true
+mcr-mem-map.workspace = true
+mockall_double.workspace = true
+embedded-alloc.workspace = true
+mcr-interrupt-controller.workspace = true
+mcr-tcon.workspace = true
+mcr-types.workspace = true
+
+[dev-dependencies]
+mockall.workspace = true
+
+[lib]
+doctest = false

@@ -1,0 +1,23 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-itcm-controller"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cfg-if.workspace = true
+log.workspace = true
+mcr-controller.workspace = true
+mcr-cpu.workspace = true
+mcr-ddi-types.workspace = true
+mcr-mem-map.workspace = true
+mcr-registers.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+mcr_test_hooks = []

@@ -1,0 +1,22 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-ipc-message"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mcr-ddi-types.workspace = true
+mcr-error.workspace = true
+mcr-ipc-controller.workspace = true
+mcr-self-test.workspace = true
+mcr-types.workspace = true
+zerocopy.workspace = true
+open-enum.workspace = true
+bitfield-struct.workspace = true
+static_assertions.workspace = true
+
+[lib]
+doctest = false

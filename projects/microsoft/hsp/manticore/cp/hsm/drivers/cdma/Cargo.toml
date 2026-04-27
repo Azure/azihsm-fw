@@ -1,0 +1,18 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-cdma"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cfg-if.workspace = true
+mcr-mem-map.workspace = true
+mcr-registers.workspace = true
+cortex-m.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+mcr_test_hooks = []

@@ -1,0 +1,44 @@
+[alias]
+xtask = "run --package xtask --"
+
+[build]
+rustflags = ["-A", "clippy::uninlined_format_args"]
+
+# -Cehcont_guard: Enable EH Continuation Metadata (https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-eh-continuation-metadata).
+# -Ccontrol-flow-guard: Enable Control Flow Guard (https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-control-flow-guard).
+# -Ctarget-feature=+crt-static: Statically link the CRT (required to link the spectre-mitigated CRT).
+[target.'cfg(target_os = "windows")']
+rustflags = ["-Cehcont_guard", "-Ccontrol-flow-guard", "-Ctarget-feature=+crt-static"]
+
+[target.'cfg(all(target_os = "windows", any(target_arch = "i686", target_arch = "x86_64")))']
+rustflags = ["-Clink-args=/DYNAMICBASE /CETCOMPAT"]
+
+[profile.release.package.mcr-admin]
+opt-level = 'z'
+
+[profile.firmware.package.mcr-types]
+opt-level = 'z'
+
+[profile.firmware.package.mcr-uart]
+opt-level = 'z'
+
+[profile.firmware.package.mcr-logger]
+opt-level = 'z'
+
+[profile.firmware.package.mcr-logging]
+opt-level = 'z'
+
+[profile.firmware.package.mcr-logging-derive]
+opt-level = 'z'
+
+[profile.firmware.package.mcr-log-tokens]
+opt-level = 'z'
+
+[profile.firmware.package.mcr-crypto-softaes]
+opt-level = 'z'
+
+[profile.firmware.package.mcr-crypto-cdma-io]
+opt-level = 'z'
+
+[profile.firmware.package.mcr-mailbox-controller]
+opt-level = 'z'

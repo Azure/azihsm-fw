@@ -1,0 +1,15 @@
+[submodule "external/acvpparser"]
+	path = external/acvpparser
+	url = https://github.com/smuellerDD/acvpparser.git
+[submodule "external/freertos"]
+	path = external/freertos
+	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
+[submodule "external/ftpm"]
+	path = external/ftpm
+	url = https://github.com/microsoft/ms-tpm-20-ref.git
+[submodule "external/mbedtls"]
+	path = external/mbedtls
+	url = https://github.com/Mbed-TLS/mbedtls.git
+[submodule "external/printf"]
+	path = external/printf
+	url = https://github.com/mpaland/printf.git

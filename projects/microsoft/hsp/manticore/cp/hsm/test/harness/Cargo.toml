@@ -1,0 +1,20 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-test-harness"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+test = false
+doctest = false
+
+[features]
+arm = []
+
+[dependencies]
+mcr-uart.workspace = true
+mcr-interrupt-controller.workspace = true
+cortex-m.workspace = true
+cortex-m-rt.workspace = true
+embedded-alloc = "0.5.0"

@@ -1,0 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+
+[toolchain]
+channel = "1.88.0"
+targets = ["thumbv7em-none-eabihf"]
+profile = "minimal"
