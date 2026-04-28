@@ -55,7 +55,7 @@ The firmware consists of four processor components:
 ## Getting the Source Code
 
 ```bash
-git clone --recurse-submodules https://github.com/microsoft/azihsm-fw.git
+git clone --recurse-submodules https://github.com/Azure/azihsm-fw.git
 cd azihsm-fw
 ```
 
@@ -145,7 +145,7 @@ Included as git submodules — pulled automatically with `--recurse-submodules`:
 
 ## License
 
-See [LICENSE](./LICENSE) for details.
+See [LICENSE](./LICENSE.txt) for details.
 
 ## Contributing
 
