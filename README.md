@@ -2,7 +2,7 @@
 
 This repository contains the open-source firmware for
 [Azure Integrated HSM](https://techcommunity.microsoft.com/blog/azureinfrastructureblog/securing-azure-infrastructure-with-silicon-innovation/4293834),
-Microsoft's dedicated Hardware Security Module (HSM) designed to be integrated
+Azure Integrated Hardware Security Module (HSM) designed to be integrated
 directly into every new server in Microsoft's datacenters.
 
 ## About Azure Integrated HSM
@@ -17,7 +17,7 @@ access latencies of traditional cloud HSM services.
 - **FIPS 140-3 Level 3** — Designed to meet the Federal Information Processing
   Standards (FIPS) 140-3 Level 3 Security Requirements for Cryptographic Modules,
   providing strong physical and logical tamper protection and detection.
-- **Locally deployed with minimum latency** — Dedicated hardware cryptographic
+- **Locally deployed with minimum latency** — Hardware cryptographic
   accelerators perform encryption, decryption, signing, and verification
   operations locally on the server, eliminating network round-trip latency to
   remote HSM services.
@@ -25,7 +25,7 @@ access latencies of traditional cloud HSM services.
   oracle access to keys from the workload environment, supporting both
   confidential and general-purpose virtual machines and containers.
 - **Secure by design** — Keys remain isolated from all software, including both
-  guest and host software, within dedicated hardware. Azure Integrated HSM will
+  guest and host software, within local hardware. Azure Integrated HSM will
   be installed in every new server in Microsoft's datacenters.
 
 Azure Integrated HSM eliminates the classic tradeoff between increased network

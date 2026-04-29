@@ -1,5 +1,0 @@
-# ninja log v5
-623	810	1777329483379272344	eccgen/eccgen	ab29a0908405e2c2
-0	623	1777329483191272489	eccgen/CMakeFiles/eccgen.dir/eccgen.cpp.o	9cc9712f2daa043
-1	783	1777395974884060207	eccgen/CMakeFiles/eccgen.dir/eccgen.cpp.o	9dc4fee249365d24
-783	851	1777395974952060655	eccgen/eccgen	ab29a0908405e2c2

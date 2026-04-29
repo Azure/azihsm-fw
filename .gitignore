@@ -1,0 +1,17 @@
+# Build artifacts
+**/build-prod/
+**/build-dev/
+**/target/
+**/_out/
+**/pcie/build/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
