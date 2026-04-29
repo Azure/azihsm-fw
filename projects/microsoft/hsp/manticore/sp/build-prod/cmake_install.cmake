@@ -44,11 +44,6 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/cmake/dc_scm_recovery/cmake_install.cmake")
-endif()
-
-if(NOT CMAKE_INSTALL_LOCAL_ONLY)
-  # Include the install script for the subdirectory.
   include("/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/cmake/dc_scm_sprt/cmake_install.cmake")
 endif()
 
