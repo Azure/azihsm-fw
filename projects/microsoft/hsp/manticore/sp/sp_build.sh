@@ -16,7 +16,6 @@ build_haps=$build_base-haps
 build_evb=$build_base-evb
 build=$build_prod
 hsp_dir=`pwd`/../../platform
-util_dir=$hsp_dir/openhsp/sources/utils
 keys_dir=`pwd`/../../../../../core/testing/keys
 
 xfer_type=0
@@ -236,7 +235,6 @@ if [ $xfer_type -eq 2 ] && [ -z "$grant_token" ]; then
 fi
 
 # Set the HSP SDK utility build path.
-util_build=$build/build-util
 
 
 #######################
@@ -250,26 +248,18 @@ elif [ $refresh -ne 0 ]; then
 fi
 
 if [ $do_cmake -ne 0 ]; then
-	if [ ! -e $util_build ]; then
-		mkdir -p $util_build
-	fi
-
-	cmake -G Ninja -S $util_dir -B $util_build -DCMAKE_BUILD_TYPE=release
-	if [ $? -ne 0 ]; then
+	
+		if [ $? -ne 0 ]; then
 		exit 1;
 	fi
 
-	cmake -G Ninja -S `pwd` -B $build -DHSP_SDK_UTIL_BIN=$util_build -DHW_BUILD_TARGET=$hw_target \
+	cmake -G Ninja -S `pwd` -B $build -DHW_BUILD_TARGET=$hw_target \
 		$extra_defs
 	if [ $? -ne 0 ]; then
 		exit 1;
 	fi
 fi
 
-ninja -C $util_build
-if [ $? -ne 0 ]; then
-	exit 1;
-fi
 
 ninja -C $build $target
 if [ $? -ne 0 ]; then
@@ -334,16 +324,11 @@ if [ $make_img -ne 0 ]; then
 	case "$target" in
 		all)
 			create_bootable_1sp "dc_scm_1sp" $VERSION
-			create_bootable_1sp "dc_scm_recovery" $REC_VERSION
-														;;
+																	;;
 
 		dc_scm_1sp.elf)
 			create_bootable_1sp "dc_scm_1sp" $VERSION
 		;;
 
-		dc_scm_recovery.elf)
-			create_bootable_1sp "dc_scm_recovery" $REC_VERSION
-		;;
-
-									esac
+											esac
 fi

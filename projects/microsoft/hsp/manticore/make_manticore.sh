@@ -22,14 +22,14 @@ root_key=$dev_keys/ecc384priv.pem
 sp1_key=$dev_keys/ecc384priv2.pem
 fw_key=$dev_keys/ecc384priv3.pem
 fips_key=$dev_keys/ecc384priv5.pem
-manifest_root_key=$dev_keys/ecc384priv6.pem
-unlock_key=$dev_keys/ecc384priv7.pem
-manifest_clear_key=$dev_keys/ecc384priv8.pem
-intrusion_reset_key=$dev_keys/ecc384priv9.pem
-identity_renew_key=$dev_keys/ecc384priv10.pem
-rma_key=$dev_keys/ecc384priv.pem
+manifest_root_key=$prod_keys/Manticore_ManifestRoot_P384.pem
+unlock_key=$prod_keys/HKMS_DebugUnlock_469407_469419_AOC_20220215.pem
+manifest_clear_key=$prod_keys/HKMS_ClearManifest_469408_469420_AOC_20220215.pem
+intrusion_reset_key=$prod_keys/HKMS_IntrusionReset_469409_469421_AOC_20220215.pem
+identity_renew_key=$prod_keys/HKMS_IdentityRenewal_500080_500850_AOC_20230404.pem
+rma_key=$prod_keys/HKMS_RMA_500081_500851_AOC_20230404.pem
 fw_update_key=$dev_keys/ecc384priv4.pem
-manticore_cfm_script=$top/tools/release/
+# [OSS] CFM removed
 
 ##
 # Build options.
@@ -573,17 +573,7 @@ fi
 cp $fw_update_auth $manticore_update_token
 
 ##
-# Generate CFM XML file for the firmware image.
 ##
-if [ $prebuild_only -eq 0 ]; then
-	if [ -f $manticore_out ]; then
-		echo -e "\e[1;36mGenerating CFM from the Manticore image\e[0m"
-		cd $manticore_cfm_script
-		python cfm_gen.py  -bf $manticore_out  -yf cfm_config.yaml -o $out_dir
-		mv $out_dir/CFM.xml $out_dir/CFM_$build_type.xml
-		echo "CFM generated at $out_dir/CFM_$build_type.xml"
-	fi
-fi
 
 echo
 echo "Manticore FW v$major.$minor.$release.$build_num-${build_time}${ext_str}:"

@@ -555,32 +555,8 @@ add_custom_command(
 		${TARGET_IMG}.bin
 	)
 
-add_custom_command(
-	TARGET
-		${TARGET_NAME}
-	POST_BUILD
-		COMMAND ${CMAKE_OBJDUMP} -xdhlSC ${TARGET_NAME} -Mno-aliases > ${TARGET_IMG}.dis
-	BYPRODUCTS
-		${TARGET_IMG}.dis
-	)
+# [OSS] .dis generation removed (debug artifact)
 
-add_custom_command(
-	TARGET
-		${TARGET_NAME}
-	POST_BUILD
-		COMMAND /usr/bin/objcopy -O verilog --set-section-flags .bss=alloc,load,contents ${TARGET_NAME} ${TARGET_IMG}In.vhx
-	BYPRODUCTS
-		${TARGET_IMG}In.vhx
-	)
+# [OSS] .vhx generation removed (FPGA artifact)
 
-add_custom_command(
-	TARGET
-		${TARGET_NAME}
-	POST_BUILD
-		COMMAND "${HSP_SDK_UTIL_BIN}/eccgen/eccgen" "-t" "20080000" "-m" "384" "-b" "32"
-		"-a" "19" "-f" "1" "-s" "-g" "-o" "${TARGET_IMG}.vhx" "${TARGET_IMG}In.vhx"
-	DEPENDS
-		${TARGET_IMG}In.vhx
-	BYPRODUCTS
-		${TARGET_IMG}.vhx
-	)
+# [OSS] eccgen removed (FPGA ECC tool)

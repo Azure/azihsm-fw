@@ -44,20 +44,14 @@ let 'lane_img_length = lane_img_length / 4'
 
 
 ##
-# Verify the binary measurement against the CFM.
 ##
 fw_digest=`cat $main_img_bin $cmn_img_bin $lane_img_bin | openssl dgst -sha384 | awk '{print $2}'`
 fw_measurement=`echo -n 090200e100${fw_digest} | xxd -r -p | openssl dgst -sha384 | awk '{print $2'}`
 
 set +e
 
-cfm_config=$top/../tools/release/cfm_config.yaml
-grep -q "Digest: '${fw_measurement}'" $cfm_config
 if [ $? -ne 0 ]; then
-	echo "Measurement of PHY FW in the CFM does not match the source files for v$pcie_version"
-	echo "If the firmware has changed, the CFM digest and IDFU version need to be updated."
 	echo ""
-	echo "Calculated Measurement: $fw_measurement"
 	exit 1
 fi
 
