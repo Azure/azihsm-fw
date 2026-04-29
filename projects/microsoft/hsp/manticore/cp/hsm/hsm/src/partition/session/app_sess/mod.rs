@@ -49,6 +49,10 @@ use mcr_ipc_message::IpcMessageNegSelfTestReq;
 use mcr_ipc_message::IpcMessageTdispInterrupt;
 #[cfg(feature = "mcr_test_hooks")]
 use mcr_ipc_message::IpcMessageTriggerCrash;
+#[cfg(feature = "mcr_test_hooks")]
+use mcr_ipc_message::IpcMessageTriggerStackValidation;
+#[cfg(feature = "mcr_test_hooks")]
+use mcr_ipc_message::StackErrorType;
 #[cfg(any(feature = "mcr_test_hooks", feature = "mcr_manual_test_hooks"))]
 use mcr_ipc_message::{IpcMessageDecoder, IpcMessageEncoderTrait};
 #[cfg(any(feature = "mcr_test_hooks", feature = "mcr_manual_test_hooks"))]
@@ -324,6 +328,47 @@ impl<E: HsmEnvTrait> HsmUserSession for UserSession<E> {
             }
             _ => {
                 error!("Invalid core id");
+                return Err(HsmErr::InvalidArgument);
+            }
+        };
+
+        Ok(())
+    }
+
+    #[cfg(feature = "mcr_test_hooks")]
+    fn send_stack_validation_request(
+        &self,
+        tag: TagId,
+        cpu_id: SocCpuId,
+        error_type: StackErrorType,
+    ) -> HsmResult<()> {
+        let msg = IpcMessageTriggerStackValidation {
+            error_type,
+            cpu_id,
+            ..Default::default()
+        };
+
+        match cpu_id {
+            SocCpuId::Admin => {
+                let admin_channel_ref: HsmToAdminIpcChannelRef<E> = self
+                    .state
+                    .env()
+                    .hsm_to_admin_ipc_channel()
+                    .acquire(tag, ())
+                    .ok_or(HsmErr::Pending)?;
+
+                admin_channel_ref
+                    .map(|c| c.send_request(tag, msg.encode()))
+                    .map_err(|err| {
+                        error!(
+                            "send_stack_validation_request: Failed to send IPC message to Admin: {:?}",
+                            err
+                        );
+                        HsmErr::IpcSendFailure
+                    })?;
+            }
+            _ => {
+                error!("Invalid core id for stack validation");
                 return Err(HsmErr::InvalidArgument);
             }
         };

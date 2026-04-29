@@ -76,17 +76,101 @@ pub fn panic(info: &core::panic::PanicInfo) -> ! {
 #[cfg(not(feature = "std"))]
 #[exception]
 unsafe fn HardFault(ef: &ExceptionFrame) -> ! {
-    error!("#### HardFault: {:#?}", ef);
+    let scb = unsafe { &*cortex_m::peripheral::SCB::PTR };
+
+    // HFSR bit 30 = FORCED: fault escalated from a configurable-priority fault
+    // CFSR bit 4  = MSTKERR: MemManage stacking error (push of exception frame failed)
+    let cfsr = scb.cfsr.read();
+    let hfsr = scb.hfsr.read();
+    let forced = (hfsr & (1 << 30)) != 0;
+    let mstkerr = (cfsr & (1 << 4)) != 0;
+
+    let msp = cortex_m::register::msp::read();
+
+    let failure_code = if forced && mstkerr {
+        // Stack overflow: MemManage fired but exception stacking also hit the
+        // MPU guard region, escalating to HardFault. The exception frame is
+        // unreliable (stacking failed — all fields are garbage/zero).
+        //
+        // We CANNOT recover PC/LR of the faulting function because:
+        //   1. The CPU saves {r0,r1,r2,r3,r12,lr,pc,xpsr} onto the stack during exception entry
+        //   2. That stacking write failed (hit the MPU guard)
+        //   3. The registers are lost — no backup mechanism exists in ARMv7-M
+        //   4. Only MSP tells us approximately where the stack was at fault time
+        error!(
+            "#### HardFault (stack overflow): MSP={:#010x}, CFSR={:#010x}, HFSR={:#010x}",
+            msp, cfsr, hfsr
+        );
+        FailureCode::MemoryFault
+    } else {
+        error!("#### HardFault: {:#?}", ef);
+        error!("CFSR={:#010x}, HFSR={:#010x}", cfsr, hfsr);
+        FailureCode::HardFault
+    };
 
     trace!("Disabling tcon_wakeup1_irq");
     InterruptController::default().disable(Interrupt::tcon_wakeup1_irq);
 
-    trace!("Notifying Crash to to other cores");
+    trace!("Notifying Crash to other cores");
     Tcon::fire_wakeup_timer1();
 
-    let mut register_context = CpuRegisterContext::from_exception_frame(ef);
-    register_context.sp = ef as *const _ as u32 + size_of::<ExceptionFrame>() as u32;
-    mcr_crashdump::crashdump_save(&register_context, FailureCode::HardFault, None);
+    let register_context = if forced && mstkerr {
+        // Exception frame is unreliable; record MSP instead
+        CpuRegisterContext {
+            sp: msp,
+            ..Default::default()
+        }
+    } else {
+        let mut ctx = CpuRegisterContext::from_exception_frame(ef);
+        ctx.sp = ef as *const _ as u32 + size_of::<ExceptionFrame>() as u32;
+        ctx
+    };
+    mcr_crashdump::crashdump_save(&register_context, failure_code, None);
+
+    loop {}
+}
+
+/// MemoryManagement fault handler
+#[cfg(not(feature = "std"))]
+#[exception]
+unsafe fn MemoryManagement() -> ! {
+    error!("#### MemoryManagement Fault");
+
+    let scb = unsafe { &*cortex_m::peripheral::SCB::PTR };
+    let cfsr = scb.cfsr.read();
+    let mmfar = scb.mmfar.read();
+
+    match mcr_cpu::cpu_id() {
+        mcr_cpu::CpuId::Admin => {
+            log_admin_error_message!(
+                "Memory management fault received. CFSR={:#x}, MMFAR={:#x}",
+                cfsr,
+                mmfar
+            );
+        }
+        _ => {
+            log_hsm_error_message!(
+                "Memory management fault received. CFSR={:#x}, MMFAR={:#x}",
+                cfsr,
+                mmfar
+            );
+        }
+    }
+
+    trace!("Disabling tcon_wakeup1_irq");
+    InterruptController::default().disable(Interrupt::tcon_wakeup1_irq);
+
+    trace!("Notifying Crash to other cores");
+    Tcon::fire_wakeup_timer1();
+
+    // Record MSP for crash analysis. We cannot reliably read the exception
+    // frame here because the compiler prologue has already modified MSP.
+    // A proper fix requires an assembly trampoline (like tcon_wakeup1_irq).
+    let register_context = CpuRegisterContext {
+        sp: cortex_m::register::msp::read(),
+        ..Default::default()
+    };
+    mcr_crashdump::crashdump_save(&register_context, FailureCode::MemoryFault, None);
 
     loop {}
 }

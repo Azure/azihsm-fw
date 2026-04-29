@@ -1121,6 +1121,175 @@ fn test_neg_pct_skip_cnt() {
     assert!(cmd.take_response().is_some());
 }
 
+#[cfg(feature = "mcr_test_hooks")]
+#[test]
+fn test_trigger_stack_validation_in_hsm() {
+    let mut heap = MockDmaHeap::new();
+    heap.expect_allocate_from_pool()
+        .times(2)
+        .returning(|s| Some(MockDmaAlloc::new(s)));
+    let req = encode_buf::<DdiTestActionCmdReq, _>(
+        &stack_validation_req(Some(DdiTestActionStackValidationInfo {
+            error_type: DdiTestStackErrorType::StackOverflow,
+            cpu_id: DdiTestActionSocCpuId::Hsm,
+        })),
+        &heap,
+    )
+    .unwrap();
+    let mut user_session = MockUserSession::new();
+    user_session
+        .expect_id()
+        .times(1)
+        .return_const(SessionId::default());
+    #[allow(unused_mut)]
+    let mut part = MockPartition::new();
+    let mut cmd = TestActionCmd::<MockEnv>::new(req, heap, user_session, part, PcieFunction::Pf);
+    assert_eq!(
+        cmd.on_event(HsmFsmEvent::StartCmd, TagId::default()),
+        Ok(()),
+    );
+    assert_eq!(cmd.session_id(), Some(SessionId::default()));
+    assert!(cmd.take_response().is_some());
+}
+
+#[cfg(feature = "mcr_test_hooks")]
+#[test]
+fn test_trigger_stack_validation_missing_info() {
+    let mut heap = MockDmaHeap::new();
+    heap.expect_allocate_from_pool()
+        .times(1)
+        .returning(|s| Some(MockDmaAlloc::new(s)));
+    let req = encode_buf::<DdiTestActionCmdReq, _>(
+        &cmd_req(
+            DdiTestAction::TriggerStackValidation,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ),
+        &heap,
+    )
+    .unwrap();
+    let mut user_session = MockUserSession::new();
+    user_session
+        .expect_id()
+        .times(1)
+        .return_const(SessionId::default());
+    let part = MockPartition::new();
+    let mut cmd = TestActionCmd::<MockEnv>::new(req, heap, user_session, part, PcieFunction::Pf);
+    assert_eq!(
+        cmd.on_event(HsmFsmEvent::StartCmd, TagId::default()),
+        Err(HsmErr::InvalidArgument),
+    );
+    assert_eq!(cmd.session_id(), Some(SessionId::default()));
+    assert!(cmd.take_response().is_none());
+}
+
+#[cfg(feature = "mcr_test_hooks")]
+#[test]
+fn test_trigger_stack_validation_in_admin() {
+    let mut heap = MockDmaHeap::new();
+    heap.expect_allocate_from_pool()
+        .times(1)
+        .returning(|s| Some(MockDmaAlloc::new(s)));
+    let req = encode_buf::<DdiTestActionCmdReq, _>(
+        &stack_validation_req(Some(DdiTestActionStackValidationInfo {
+            error_type: DdiTestStackErrorType::StackOverflow,
+            cpu_id: DdiTestActionSocCpuId::Admin,
+        })),
+        &heap,
+    )
+    .unwrap();
+    let mut user_session = MockUserSession::new();
+    user_session
+        .expect_id()
+        .times(1)
+        .return_const(SessionId::default());
+    user_session
+        .expect_send_stack_validation_request()
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+
+    let part = MockPartition::new();
+    let mut cmd = TestActionCmd::<MockEnv>::new(req, heap, user_session, part, PcieFunction::Pf);
+
+    assert_eq!(
+        cmd.on_event(HsmFsmEvent::StartCmd, TagId::default()),
+        Err(HsmErr::Pending),
+    );
+
+    assert_eq!(cmd.session_id(), Some(SessionId::default()));
+    assert!(cmd.take_response().is_none());
+}
+
+#[cfg(feature = "mcr_test_hooks")]
+#[test]
+fn test_trigger_stack_validation_in_admin_after_resource_pending() {
+    let mut heap = MockDmaHeap::new();
+    heap.expect_allocate_from_pool()
+        .times(1)
+        .returning(|s| Some(MockDmaAlloc::new(s)));
+    let req = encode_buf::<DdiTestActionCmdReq, _>(
+        &stack_validation_req(Some(DdiTestActionStackValidationInfo {
+            error_type: DdiTestStackErrorType::StackGuardViolation,
+            cpu_id: DdiTestActionSocCpuId::Admin,
+        })),
+        &heap,
+    )
+    .unwrap();
+    let mut user_session = MockUserSession::new();
+    user_session
+        .expect_id()
+        .times(1)
+        .return_const(SessionId::default());
+
+    user_session
+        .expect_send_stack_validation_request()
+        .times(1)
+        .returning(|_, _, _| Err(HsmErr::Pending));
+    user_session
+        .expect_send_stack_validation_request()
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+
+    let part = MockPartition::new();
+    let mut cmd = TestActionCmd::<MockEnv>::new(req, heap, user_session, part, PcieFunction::Pf);
+
+    assert_eq!(
+        cmd.on_event(HsmFsmEvent::StartCmd, TagId::default()),
+        Err(HsmErr::Pending),
+    );
+    assert_eq!(
+        cmd.on_event(
+            HsmFsmEvent::ResourceReady(HsmFsmResourceId::HsmToAdminIpcChannel),
+            TagId::default()
+        ),
+        Err(HsmErr::Pending),
+    );
+
+    assert_eq!(cmd.session_id(), Some(SessionId::default()));
+    assert!(cmd.take_response().is_none());
+}
+
+#[cfg(feature = "mcr_test_hooks")]
+fn stack_validation_req(
+    stack_validation_info: Option<DdiTestActionStackValidationInfo>,
+) -> DdiTestActionCmdReq {
+    let mut req = cmd_req(
+        DdiTestAction::TriggerStackValidation,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    );
+    req.data.stack_validation_info = stack_validation_info;
+    req
+}
+
 fn cmd_req(
     action: DdiTestAction,
     crash_info: Option<DdiTestActionCrashReqInfo>,
@@ -1147,6 +1316,7 @@ fn cmd_req(
             tdisp_interrupt_type: None,
             updated_svn: None,
             gdma_error_type: None,
+            stack_validation_info: None,
         },
     }
 }

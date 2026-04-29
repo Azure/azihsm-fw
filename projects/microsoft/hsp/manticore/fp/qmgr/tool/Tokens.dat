@@ -1,6 +1,3 @@
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2021-2026 Marvell
-
 ; Categories: { "CPU0": "0x0,", "CPU1": "0x1,", "CPU2": "0x2," }
 00 01,       "CPU0Common         (%09d): [IO LOG] Outbound cq Fail: cqci:0x%X, ErrSts:0x%X\n", 2 4 4
 00 02,       "CPU0Common         (%09d): [IO LOG] Inbound cq Fail: cqci:0x%X, ErrSts:0x%X\n", 2 4 4
@@ -59,7 +56,7 @@
 08 17,       "CPU2Common         (%09d): Send FP to CP msg failed with, status:0x%X\n", 2 4
 88 11,       "CPU2Common         (%09d): MsgHandleFpUcdQuery: Not responding to UCD Query to simulate POST_RESET_FAULT_INJECTION_SUPPORT when reset type = 0x%x\n", 2 4
 88 12,       "CPU2Common         (%09d): FP CPU 2 Status Change Completed. Status [0x%x]\n", 2 4
+88 18,       "CPU2Common         (%09d): (CPU2) IPC Message Timeout, devID: [0x%x]\n", 2 4
 80 0A,       "CPU0Common         (%09d): (CPU0) IPC Message Timeout, devID: [0x%x]\n", 2 4
 84 18,       "CPU1Common         (%09d): (CPU1) IPC Message Timeout, devID: [0x%x]\n", 2 4
-88 18,       "CPU2Common         (%09d): (CPU2) IPC Message Timeout, devID: [0x%x]\n", 2 4
 

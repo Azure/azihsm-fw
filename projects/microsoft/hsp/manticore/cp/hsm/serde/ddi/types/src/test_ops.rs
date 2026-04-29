@@ -90,6 +90,9 @@ pub enum DdiTestAction {
 
     /// Clear BK3 info (masked bk boot and sealed bk3)
     ClearBk3 = 22,
+
+    /// Trigger Stack Validation Test (overflow / guard violation)
+    TriggerStackValidation = 23,
 }
 
 /// Test action crash type.
@@ -110,6 +113,20 @@ pub enum DdiTestActionCrashType {
 
     /// Trigger Core Hang.
     Hang = 4,
+}
+
+/// Test action stack error type
+#[cfg_attr(feature = "fuzzing", derive(arbitrary::Arbitrary))]
+#[open_enum]
+#[derive(Debug, Ddi, Copy, Clone, PartialEq, Eq)]
+#[repr(u32)]
+#[ddi(enumeration)]
+pub enum DdiTestStackErrorType {
+    /// Trigger Stack Overflow (MemManage fault)
+    StackOverflow = 1,
+
+    /// Stack guard violation (MemManage fault)
+    StackGuardViolation = 2,
 }
 
 /// Test action ECC Error type
@@ -229,6 +246,20 @@ pub struct DdiTestActionEccErrorInfo {
     pub cpu_id: DdiTestActionSocCpuId,
 }
 
+/// Test action stack validation request info
+#[cfg_attr(feature = "fuzzing", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Ddi)]
+#[ddi(map)]
+pub struct DdiTestActionStackValidationInfo {
+    /// Stack error type.
+    #[ddi(id = 1)]
+    pub error_type: DdiTestStackErrorType,
+
+    /// CPU ID
+    #[ddi(id = 2)]
+    pub cpu_id: DdiTestActionSocCpuId,
+}
+
 /// DDI Test Action Pin Policy Config
 #[cfg_attr(feature = "fuzzing", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Ddi)]
@@ -300,6 +331,10 @@ pub struct DdiTestActionReq {
     /// GDMA Error Type
     #[ddi(id = 10)]
     pub gdma_error_type: Option<DdiTestActionGDMAErrorType>,
+
+    /// Stack Validation Info
+    #[ddi(id = 11)]
+    pub stack_validation_info: Option<DdiTestActionStackValidationInfo>,
 }
 
 /// Test - Skip IO Response Structure

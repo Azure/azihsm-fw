@@ -16,4 +16,5 @@ pub mod state_change;
 pub mod stop_interface;
 pub mod tdisp_int;
 pub mod trigger_crash;
+pub mod trigger_stack_validation;
 pub mod ucd_query;

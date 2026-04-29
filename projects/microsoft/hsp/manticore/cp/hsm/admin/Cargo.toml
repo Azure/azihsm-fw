@@ -70,7 +70,7 @@ hex-literal.workspace = true
 [features]
 default = ["std"]
 disable_uart_log = ["mcr-logger/disable_output"]
-std = ["disable_uart_log", "mcr-exception-handlers/std"]
+std = ["disable_uart_log", "mcr-exception-handlers/std", "mcr-cpu/std"]
 idfu_fault_pre_reset_admin_shutdown_ipc_resp_err = []
 idfu_fault_pre_reset_admin_shutdown_ipc_no_resp_err = []
 idfu_fault_pre_reset_admin_drain_timeout = []

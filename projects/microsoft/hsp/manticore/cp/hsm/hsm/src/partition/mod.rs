@@ -54,6 +54,8 @@ use mcr_ddi_types::DdiTestActionPinPolicyConfig;
 use mcr_ipc_message::CrashType;
 #[cfg(feature = "mcr_test_hooks")]
 use mcr_ipc_message::SocCpuId;
+#[cfg(feature = "mcr_test_hooks")]
+use mcr_ipc_message::StackErrorType;
 #[cfg(feature = "mcr_manual_test_hooks")]
 use mcr_ipc_message::TdispInterruptInfo;
 use mcr_types::*;
@@ -1626,6 +1628,25 @@ pub(crate) trait HsmUserSession: HsmSession {
         tag: TagId,
         cpu_id: SocCpuId,
         crash_type: CrashType,
+    ) -> HsmResult<()>;
+
+    /// Send IPC message to trigger stack validation test
+    ///
+    /// # Arguments
+    ///
+    /// * `tag` - Tag ID
+    /// * `cpu_id` - Target CPU
+    /// * `error_type` - Stack error type
+    ///
+    /// # Returns
+    ///
+    /// * Returns `Ok(())` if successful else `Err(HsmError)` if failed
+    #[cfg(feature = "mcr_test_hooks")]
+    fn send_stack_validation_request(
+        &self,
+        tag: TagId,
+        cpu_id: SocCpuId,
+        error_type: StackErrorType,
     ) -> HsmResult<()>;
 
     /// Send IPC message to trigger tdisp interrupt

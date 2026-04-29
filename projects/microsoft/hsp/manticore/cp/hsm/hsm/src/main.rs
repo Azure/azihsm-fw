@@ -202,12 +202,26 @@ fn app_entry() -> ! {
             );
         }
         CpuId::Hsm => {
+            use mcr_cpu::stack_guard::StackGuard;
+
+            extern "C" {
+                static __stack_limit__: u32; // lowest valid stack address
+            }
+            let stack_limit = unsafe { &__stack_limit__ as *const u32 as u32 };
+
+            // Configure MPU region for stack guard.
+            let stack_guard_configured = unsafe { StackGuard::configure(stack_limit) };
+
             // Initialize heap
             const HEAP_SIZE: usize = 118 * 1024;
             static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
             #[allow(static_mut_refs)]
             unsafe {
                 HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE)
+            }
+
+            if !stack_guard_configured {
+                error!("Failed to configure stack guard: invalid stack limit");
             }
 
             trace!("HSM core running");

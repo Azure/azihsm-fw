@@ -91,6 +91,16 @@ pub fn run() -> ! {
 #[cfg(not(feature = "std"))]
 #[entry]
 fn app_entry() -> ! {
+    use mcr_cpu::stack_guard::StackGuard;
+
+    extern "C" {
+        static __stack_limit__: u32; // lowest valid stack address
+    }
+    let stack_limit = unsafe { &__stack_limit__ as *const u32 as u32 };
+
+    // Configure MPU region for stack guard.
+    let stack_guard_configured = unsafe { StackGuard::configure(stack_limit) };
+
     // Initialize heap
     const HEAP_SIZE: usize = 72 * 1024;
     static mut HEAP_MEM: [core::mem::MaybeUninit<u8>; HEAP_SIZE] =
@@ -100,6 +110,11 @@ fn app_entry() -> ! {
         HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE);
     }
     mcr_logger::Logger::init(log::LevelFilter::Info);
+
+    if !stack_guard_configured {
+        error!("Failed to configure stack guard: invalid stack limit");
+    }
+
     run()
 }
 

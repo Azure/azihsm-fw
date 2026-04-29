@@ -394,6 +394,31 @@ impl<E: HsmEnvTrait> TestActionCmd<E> {
                 #[cfg(not(feature = "fips_validation_hooks"))]
                 Err(HsmErr::UnsupportedCmd)?
             }
+            DdiTestAction::TriggerStackValidation => {
+                #[cfg(feature = "mcr_test_hooks")]
+                {
+                    let stack_info = decoded_req
+                        .data
+                        .stack_validation_info
+                        .ok_or(HsmErr::InvalidArgument)?;
+                    let cpu_id = stack_info.cpu_id;
+                    let error_type = stack_info.error_type;
+                    trace!(
+                        "[tag: {}] Testing stack validation ({:?}) for CPU {:?}",
+                        _tag,
+                        error_type,
+                        cpu_id
+                    );
+                    if cpu_id == DdiTestActionSocCpuId::Admin {
+                        self.send_stack_validation_request(_tag, cpu_id, error_type)?;
+                    } else {
+                        mcr_crashdump::trigger_stack_validation(error_type);
+                    }
+                }
+
+                #[cfg(not(feature = "mcr_test_hooks"))]
+                Err(HsmErr::UnsupportedCmd)?
+            }
             _ => {
                 #[cfg(feature = "mcr_test_hooks")]
                 {
@@ -433,7 +458,24 @@ impl<E: HsmEnvTrait> TestActionCmd<E> {
         }
 
         #[cfg(feature = "mcr_test_hooks")]
-        self.send_crashdump_request(tag)
+        {
+            let decoded_req = decode_buf::<DdiTestActionCmdReq, E>(&self.req)?;
+            match decoded_req.data.action {
+                DdiTestAction::TriggerStackValidation => {
+                    let stack_info = decoded_req
+                        .data
+                        .stack_validation_info
+                        .ok_or(HsmErr::InvalidArgument)?;
+                    self.send_stack_validation_request(
+                        tag,
+                        stack_info.cpu_id,
+                        stack_info.error_type,
+                    )
+                }
+                DdiTestAction::TriggerCrash => self.send_crashdump_request(tag),
+                _ => Err(HsmErr::InvalidArgument)?,
+            }
+        }
     }
 
     /// Trigger crash dump
@@ -449,6 +491,34 @@ impl<E: HsmEnvTrait> TestActionCmd<E> {
         };
         mcr_crashdump::crashdump_trigger(crash_info.crash_type);
         Ok(())
+    }
+
+    /// Send stack validation request to another core.
+    #[cfg(feature = "mcr_test_hooks")]
+    fn send_stack_validation_request(
+        &mut self,
+        tag: TagId,
+        cpu_id: DdiTestActionSocCpuId,
+        error_type: DdiTestStackErrorType,
+    ) -> Result<(), HsmErr> {
+        match self
+            .session
+            .send_stack_validation_request(tag, cpu_id.into(), error_type.into())
+        {
+            Ok(_) => {
+                trace!("Stack validation request has been sent.");
+                self.state = State::Final;
+                Err(HsmErr::Pending)
+            }
+            Err(err) => {
+                if err.pending() {
+                    self.state = State::WaitForResource;
+                } else {
+                    self.state = State::Final;
+                }
+                Err(err)
+            }
+        }
     }
 
     /// Send crash dump request to another core.

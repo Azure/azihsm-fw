@@ -41,6 +41,7 @@ pub use message::state_change::*;
 pub use message::stop_interface::*;
 pub use message::tdisp_int::*;
 pub use message::trigger_crash::*;
+pub use message::trigger_stack_validation::*;
 pub use message::ucd_query::*;
 
 /// Various states of IO processing cores
@@ -126,6 +127,9 @@ pub enum IpcMessageOpCode {
     /// Get AES256 Bulk Key
     GetBulkKey = 0x4A,
 
+    /// Test Stack Validation
+    TriggerStackValidation = 0x4B,
+
     /// Set Resource
     SetResource = 0x7f,
 }
@@ -154,6 +158,7 @@ impl TryFrom<u8> for IpcMessageOpCode {
             0x48 => IpcMessageOpCode::NegativeSelfTest,
             0x49 => IpcMessageOpCode::TdispInterrupt,
             0x4A => IpcMessageOpCode::GetBulkKey,
+            0x4B => IpcMessageOpCode::TriggerStackValidation,
             0x7F => IpcMessageOpCode::SetResource,
             _ => Err(IpcMessageErr::InvalidOpcodeConversion)?,
         };

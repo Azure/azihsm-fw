@@ -5,6 +5,7 @@ use mcr_crashdump::*;
 use mcr_crypto_rng::RngTrait;
 use mcr_crypto_softaes::SoftAesTrait;
 use mcr_ddi_types::DdiTestActionCrashType;
+use mcr_ddi_types::DdiTestStackErrorType;
 use mcr_error::McrResult;
 use mcr_gdma_controller::*;
 use mcr_ide::*;
@@ -358,6 +359,9 @@ impl<E: AdminEnvTrait> AdminEventHandler<E> {
 
         match op_code {
             IpcMessageOpCode::TriggerCrash => self.handle_trigger_crash(message),
+            IpcMessageOpCode::TriggerStackValidation => {
+                self.handle_trigger_stack_validation(message)
+            }
             IpcMessageOpCode::NegativeSelfTest => self.handle_negative_self_test(message),
             #[cfg(feature = "mcr_manual_test_hooks")]
             IpcMessageOpCode::TdispInterrupt => self.handle_tdisp_interrupt_request(message),
@@ -383,6 +387,31 @@ impl<E: AdminEnvTrait> AdminEventHandler<E> {
             CrashType::Hang => crashdump_trigger(DdiTestActionCrashType::Hang),
             _ => crashdump_trigger(DdiTestActionCrashType::Panic),
         }
+
+        Ok(())
+    }
+
+    fn handle_trigger_stack_validation(&mut self, message: IpcMessage) -> McrResult<()> {
+        let message_payload = IpcMessageDecoder::decode::<IpcMessageTriggerStackValidation>(
+            message,
+        )
+        .inspect_err(|_err| {
+            error!("Invalid IPC message for TriggerStackValidation");
+        })?;
+
+        let error_type = match message_payload.error_type {
+            StackErrorType::StackOverflow => DdiTestStackErrorType::StackOverflow,
+            StackErrorType::StackGuardViolation => DdiTestStackErrorType::StackGuardViolation,
+            _ => {
+                error!("Invalid stack error type");
+                self.send_hsm_ipc_response(message, IpcMessageStatusCode::MessageNotSupported)?;
+                return Ok(());
+            }
+        };
+
+        self.send_hsm_ipc_response(message, IpcMessageStatusCode::Success)?;
+
+        trigger_stack_validation(error_type);
 
         Ok(())
     }

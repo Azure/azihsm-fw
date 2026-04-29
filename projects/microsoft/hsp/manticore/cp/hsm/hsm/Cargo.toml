@@ -84,7 +84,7 @@ syn = { workspace = true, optional = true }
 
 [features]
 default = ["std"]
-std = ["mcr-exception-handlers/std"]
+std = ["mcr-exception-handlers/std", "mcr-cpu/std"]
 rust_analyzer_fix = []
 mcr_test_hooks = ["mcr-dtcm-controller/mcr_test_hooks", "mcr-cdma/mcr_test_hooks", "mcr-itcm-controller/mcr_test_hooks", "mcr-gdma-controller/mcr_test_hooks"]
 mcr_test_hooks_cdma_ecc_err = []

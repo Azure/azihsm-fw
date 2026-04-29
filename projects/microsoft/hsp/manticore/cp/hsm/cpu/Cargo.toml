@@ -5,7 +5,11 @@ name = "mcr-cpu"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+std = []
+
 [dependencies]
+cfg-if.workspace = true
 cortex-m.workspace = true
 mcr-registers.workspace = true
 

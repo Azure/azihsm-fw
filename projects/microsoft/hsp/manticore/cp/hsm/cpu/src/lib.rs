@@ -2,6 +2,8 @@
 
 #![no_std]
 
+pub mod stack_guard;
+
 pub use cortex_m::asm::dmb;
 pub use cortex_m::asm::dsb;
 pub use cortex_m::asm::isb;

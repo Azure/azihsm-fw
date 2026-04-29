@@ -30,6 +30,8 @@ use mcr_ipc_controller::*;
 use mcr_ipc_message::CrashType;
 #[cfg(feature = "mcr_test_hooks")]
 use mcr_ipc_message::SocCpuId;
+#[cfg(feature = "mcr_test_hooks")]
+use mcr_ipc_message::StackErrorType;
 #[cfg(feature = "mcr_manual_test_hooks")]
 use mcr_ipc_message::TdispInterruptInfo;
 use mcr_logging::DebugLogSenderTrait;
@@ -990,6 +992,9 @@ mod partition {
 
             #[cfg(feature = "mcr_test_hooks")]
             fn send_crashdump_request(&self, tag: TagId, cpu_id: SocCpuId, crash_type: CrashType) -> HsmResult<()>;
+
+            #[cfg(feature = "mcr_test_hooks")]
+            fn send_stack_validation_request(&self, tag: TagId, cpu_id: SocCpuId, error_type: StackErrorType) -> HsmResult<()>;
 
             #[cfg(feature = "mcr_test_hooks")]
             fn cmd_fsm_test_action(&self, test_action: Option<DdiTestAction>) -> Option<DdiTestAction>;
