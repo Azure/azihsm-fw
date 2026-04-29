@@ -14,5 +14,4 @@
 
 # Do not build the FPGA ROM since that needs to built with clang.
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/dc_scm_1sp)
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/dc_scm_recovery)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/dc_scm_sprt)

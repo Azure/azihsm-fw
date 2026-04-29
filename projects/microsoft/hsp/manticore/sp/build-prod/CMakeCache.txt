@@ -195,9 +195,6 @@ CMAKE_STRIP:FILEPATH=/home/tselvam/build_tools/riscv64-unknown-elf-toolchain-10.
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
 //No help, variable specified on the command line.
-HSP_SDK_UTIL_BIN:UNINITIALIZED=/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util
-
-//No help, variable specified on the command line.
 HW_BUILD_TARGET:UNINITIALIZED=BUILD_FOR_PRODUCTION
 
 //No help, variable specified on the command line.
@@ -211,15 +208,6 @@ dc-scm-1sp_IS_TOP_LEVEL:STATIC=OFF
 
 //Value Computed by CMake
 dc-scm-1sp_SOURCE_DIR:STATIC=/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/cmake/dc_scm_1sp
-
-//Value Computed by CMake
-dc-scm-recovery_BINARY_DIR:STATIC=/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/cmake/dc_scm_recovery
-
-//Value Computed by CMake
-dc-scm-recovery_IS_TOP_LEVEL:STATIC=OFF
-
-//Value Computed by CMake
-dc-scm-recovery_SOURCE_DIR:STATIC=/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/cmake/dc_scm_recovery
 
 //Value Computed by CMake
 dc-scm-sprt_BINARY_DIR:STATIC=/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/cmake/dc_scm_sprt
@@ -337,7 +325,7 @@ CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_NM
 CMAKE_NM-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=4
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=3
 //Platform information initialized
 CMAKE_PLATFORM_INFO_INITIALIZED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_RANLIB
