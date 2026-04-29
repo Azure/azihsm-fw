@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 #include <memory.h>
 #include "hsp_top.h"
 #include "init_crypto.h"

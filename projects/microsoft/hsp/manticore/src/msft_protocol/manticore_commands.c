@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 #include <limits.h>
 #include <string.h>
 #include "manticore_commands.h"

@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 #ifndef PLATFORM_FUSES_H_
 #define PLATFORM_FUSES_H_
 

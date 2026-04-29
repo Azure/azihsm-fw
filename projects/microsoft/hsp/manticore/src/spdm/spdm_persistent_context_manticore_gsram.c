@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 #include <string.h>
 #include "spdm_persistent_context_manticore_gsram.h"
 #include "common/type_cast.h"

@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 #ifndef SPDM_PERSISTENT_CONTEXT_MANTICORE_GSRAM_STATIC_H_
 #define SPDM_PERSISTENT_CONTEXT_MANTICORE_GSRAM_STATIC_H_
 

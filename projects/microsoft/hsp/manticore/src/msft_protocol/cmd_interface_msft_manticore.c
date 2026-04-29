@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
