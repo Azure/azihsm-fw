@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-
 #ifndef MANTICORE_HSP_H_
 #define MANTICORE_HSP_H_
 
