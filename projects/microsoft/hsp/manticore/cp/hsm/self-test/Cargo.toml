@@ -1,0 +1,19 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-self-test"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+bitfield-struct.workspace = true
+mcr-alloc.workspace = true
+mcr-types.workspace = true
+mcr-cpu.workspace = true
+
+[dev-dependencies]
+static_assertions.workspace = true
+

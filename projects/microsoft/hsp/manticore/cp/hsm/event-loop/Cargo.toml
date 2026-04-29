@@ -1,0 +1,15 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-event-loop"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mcr-interrupt-controller.workspace = true
+
+[dev-dependencies]
+mcr-event-loop-derive.workspace = true
+
+[lib]
+doctest = false

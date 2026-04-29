@@ -1,0 +1,12 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-alloc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+linked_list_allocator.workspace = true
+
+[lib]
+doctest = false

@@ -1,0 +1,13 @@
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/CMakeFiles/edit_cache.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/CMakeFiles/rebuild_cache.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/CMakeFiles/list_install_components.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/CMakeFiles/install.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/CMakeFiles/install/local.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/CMakeFiles/install/strip.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/eccgen/CMakeFiles/eccgen.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/eccgen/CMakeFiles/edit_cache.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/eccgen/CMakeFiles/rebuild_cache.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/eccgen/CMakeFiles/list_install_components.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/eccgen/CMakeFiles/install.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/eccgen/CMakeFiles/install/local.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/build-util/eccgen/CMakeFiles/install/strip.dir

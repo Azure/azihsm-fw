@@ -1,0 +1,62 @@
+; Categories: { "CPU0": "0x0,", "CPU1": "0x1,", "CPU2": "0x2," }
+00 01,       "CPU0Common         (%09d): [IO LOG] Outbound cq Fail: cqci:0x%X, ErrSts:0x%X\n", 2 4 4
+00 02,       "CPU0Common         (%09d): [IO LOG] Inbound cq Fail: cqci:0x%X, ErrSts:0x%X\n", 2 4 4
+00 03,       "CPU0Common         (%09d): InboundCompletionHandler: Invalid ibcqIndex: 0x%X\n", 2 4
+00 04,       "CPU0Common         (%09d): OutboundCompletionHandler: Invalid obcqIndex: 0x%X\n", 2 4
+80 05,       "CPU0Common         (%09d): FP CPU 0 Status Change Completed. Status [0x%x]\n", 2 4
+00 06,       "CPU0Common         (%09d): FpsCpuVfSlotSq2CqMapUpdate: vfId out of range, vfId:0x%X\n", 2 4
+00 07,       "CPU0Common         (%09d): FpsCpuVfSlotSq2CqMapUpdate: SqPId out of range, SqPId:0x%X\n", 2 4
+00 08,       "CPU0Common         (%09d): ucdCoreID out of range [0x%x]\n", 2 4
+00 09,       "CPU0Common         (%09d): ucdQueueID out of range [0x%x]\n", 2 4
+84 01,       "CPU1Common         (%09d): CDMAIO:  cCEStsLengthUnalign16B [0x%x]\n", 2 4
+84 02,       "CPU1Common         (%09d): CDMAIO: XTS key index out of bound, keyIndex1:0x%X\n", 2 4
+84 03,       "CPU1Common         (%09d): CDMAIO: XTS key index out of bound, keyIndex2:0x%X\n", 2 4
+84 04,       "CPU1Common         (%09d): CDMAIO: XTS keyindex match error, keyIndex1:0x%X keyIndex2:0x%X\n", 2 4 4
+84 05,       "CPU1Common         (%09d): CDMAIO: XTS vfid mismatch error, stored vfid for keyIndex1:0x%X, vfid in command:0x%X\n", 2 4 4
+84 06,       "CPU1Common         (%09d): CDMAIO: XTS vfid mismatch error, stored vfid for keyIndex2:0x%X, vfid in command:0x%X\n", 2 4 4
+84 07,       "CPU1Common         (%09d): CDMAIO: XTS ephermal flag mismatch error, ephemeral flag for keyIndex1:0x%X ephemeral flag for keyIndex2:0x%X\n", 2 4 4
+84 08,       "CPU1Common         (%09d): CDMAIO: XTS appID mismatch, stored appID for keyIndex1:0x%X appID in command:0x%X\n", 2 4 4
+84 09,       "CPU1Common         (%09d): CDMAIO: XTS appID mismatch, stored appID for keyIndex2:0x%X appID in command:0x%X\n", 2 4 4
+84 0A,       "CPU1Common         (%09d): CDMAIO: XTS sessionID mismatch, stored sessionID for keyIndex1:0x%X sessionID in command:0x%X\n", 2 4 4
+84 0B,       "CPU1Common         (%09d): CDMAIO: XTS sessionID mismatch, stored sessionID for keyIndex2:0x%X sessionID in command:0x%X\n", 2 4 4
+84 0C,       "CPU1Common         (%09d): CDMAIO: XTS AES XTS data length exceeds MAX length (Max Length is 16MB), length:0x%X\n", 2 4
+84 0D,       "CPU1Common         (%09d): CDMAIO: GCM unaligned AAD length, length:0x%X \n", 2 4
+84 0E,       "CPU1Common         (%09d): CDMAIO: GCM key index out of bound, keyIndex:0x%X \n", 2 4
+84 15,       "CPU1Common         (%09d): CDMAIO: GCM vfid mismatch error, stored vfid for keyIndex:0x%X, vfid in command:0x%X\n", 2 4 4
+84 0F,       "CPU1Common         (%09d): CDMAIO: GCM ephemeral key sessionID mismatch, stored sessionID for keyIndex:0x%X sessionID in command:0x%X\n", 2 4 4
+84 10,       "CPU1Common         (%09d): CDMAIO: GCM ephemeral key appID mismatch, stored appID for keyIndex:0x%X appID in command:0x%X\n", 2 4 4
+84 11,       "CPU1Common         (%09d): CDMAIO: GCM persistent key appID mismatch, stored appID for keyIndex:0x%X appID in command:0x%X\n", 2 4 4
+84 12,       "CPU1Common         (%09d): CDMAIO: GCM invalid key, KeyIndex:0x%X \n", 2 4
+84 13,       "CPU1Common         (%09d): CDMAIO: GCM invalid key, vfId:0x%X pThis->_key2OwnerVfid[keyIndex1]:0x%X \n", 2 4(16,16,)
+84 14,       "CPU1Common         (%09d): FP CPU 1 Status Change Completed. Status [0x%x]\n", 2 4
+04 16,       "CPU1Common         (%09d): ManageQueueCfg: vfId out of range, vfId:0x%X\n", 2 4
+04 17,       "CPU1Common         (%09d): _HandleTeardown: vfId out of range, vfId:0x%X\n", 2 4
+88 01,       "CPU2Common         (%09d): CDMAInit: key vault mem uncorrectable err, errorCount:0x%X\n", 2 4
+88 02,       "CPU2Common         (%09d): Invalid DFL List :0x%X\n", 2 4
+88 03,       "CPU2Common         (%09d): L1 abort triggered, msgOp:0x%X\n", 2 4
+08 13,       "CPU2Common         (%09d): CDMA cmd returned error, but Slot Error Registers are not set [0x%x]\n", 2 4
+08 04,       "CPU2Common         (%09d): CdmaCmdError: detect non-fatal err, hiuId:0x%X cid:0x%X\n", 2 4(8,24,)
+08 05,       "CPU2Common         (%09d): CdmaCmdError: detect poorly sgl err, hiuId:0x%X cid:0x%X\n", 2 4(8,24,)
+08 06,       "CPU2Common         (%09d): CdmaCmdError: detect invalid gcm tag, hiuId:0x%X cid:0x%X\n", 2 4(8,24,)
+08 07,       "CPU2Common         (%09d): CdmaCmdError: detect qos err, hiuId:0x%X cid:0x%X\n", 2 4(8,24,)
+08 08,       "CPU2Common         (%09d): CdmaCmdError: classify err report host, hiuId:0x%X cid:0x%X\n", 2 4(8,24,)
+08 09,       "CPU2Common         (%09d): CdmaCmdError: unexpected sts, hiuId:0x%X cid:0x%X cdmaErrSts:0x%X\n", 2 4(8,16,8,)
+88 0A,       "CPU2Common         (%09d): Cpu2CdmaErrorInjectionSetErrorType: invalid error type:0x%X\n", 2 4
+88 0B,       "CPU2Common         (%09d): Cpu2ChkErrInjectErrType: invalid error type:0x%X\n", 2 4
+88 0C,       "CPU2Common         (%09d): HandleFatalErrorSlot: cdmaErrorStatus0 = 0x%X cdmaErrorStatus1 = 0x%X\n", 2 4 4
+08 14,       "CPU2Common         (%09d): Entered because of Non-defined error mask reg, cdmaErrorStatus0:[0x%X] cdmaErrorStatus1:[0x%X]\n", 2 4 4
+88 0D,       "CPU2Common         (%09d): Firmware Major Number. [0x%x]\n", 2 4
+88 0E,       "CPU2Common         (%09d): Firmware Minor Number. [0x%x]\n", 2 4
+88 0F,       "CPU2Common         (%09d): Firmware OEM Number. [0x%x]\n", 2 4
+88 10,       "CPU2Common         (%09d): Firmware Version Build. [0x%x]\n", 2 4
+88 19,       "CPU2Common         (%09d): MsgHandleErrQset Received response from HSM _cdmaFatalErrorHandleState = %d \n", 2 4
+88 1A,       "CPU2Common         (%09d): MsgHandleErrQset Received request from HSM pMsgSQContext->resp = %d\n", 2 4
+08 15,       "CPU2Common         (%09d): MsgHandleFpVfSlotSq2CqMapUpdate: SqPId out of range, SqPId:0x%X\n", 2 4
+88 16,       "CPU2Common         (%09d): Detected correctable error on CDMA, Sending message to HSM to reload key vault, [0x%X]\n", 2 4
+08 17,       "CPU2Common         (%09d): Send FP to CP msg failed with, status:0x%X\n", 2 4
+88 11,       "CPU2Common         (%09d): MsgHandleFpUcdQuery: Not responding to UCD Query to simulate POST_RESET_FAULT_INJECTION_SUPPORT when reset type = 0x%x\n", 2 4
+88 12,       "CPU2Common         (%09d): FP CPU 2 Status Change Completed. Status [0x%x]\n", 2 4
+88 18,       "CPU2Common         (%09d): (CPU2) IPC Message Timeout, devID: [0x%x]\n", 2 4
+80 0A,       "CPU0Common         (%09d): (CPU0) IPC Message Timeout, devID: [0x%x]\n", 2 4
+84 18,       "CPU1Common         (%09d): (CPU1) IPC Message Timeout, devID: [0x%x]\n", 2 4
+

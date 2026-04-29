@@ -1,0 +1,18 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+colored.workspace = true
+hashbrown.workspace = true
+mcr-log-tokens.workspace = true
+mcr-logging.workspace = true
+quote.workspace = true
+regex.workspace = true
+syn.workspace = true
+walkdir.workspace = true

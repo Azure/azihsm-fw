@@ -1,0 +1,13 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-log-tokens"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+hashbrown.workspace = true
+lazy_static.workspace = true

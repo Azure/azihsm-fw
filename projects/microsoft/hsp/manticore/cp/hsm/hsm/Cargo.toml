@@ -1,0 +1,98 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-hsm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+asn1.workspace = true
+bitfield-struct.workspace = true
+bitfield.workspace = true
+cfg-if.workspace = true
+cortex-m-rt.workspace = true
+cortex-m.workspace = true
+embedded-alloc.workspace = true
+hashbrown.workspace = true
+lazy_static.workspace = true
+linked_list_allocator.workspace = true
+log.workspace = true
+mcr-alloc.workspace = true
+mcr-cdma.workspace = true
+mcr-cpu.workspace = true
+mcr-crashdump.workspace = true
+mcr-crypto-aes.workspace = true
+mcr-crypto-cdma-io.workspace = true
+mcr-crypto-pka.workspace = true
+mcr-crypto-rng.workspace = true
+mcr-crypto-sha.workspace = true
+mcr-ddi-mbor.workspace = true
+mcr-ddi-types.workspace = true
+mcr-dtcm-controller.workspace = true
+mcr-error.workspace = true
+mcr-event-loop-derive.workspace = true
+mcr-event-loop-nvic.workspace = true
+mcr-event-loop.workspace = true
+mcr-exception-handlers.workspace = true
+mcr-gdma-controller.workspace = true
+mcr-interrupt-controller.workspace = true
+mcr-io-controller.workspace = true
+mcr-ipc-controller.workspace = true
+mcr-ipc-message.workspace = true
+mcr-itcm-controller.workspace = true
+mcr-log-tokens.workspace = true
+mcr-logger.workspace = true
+mcr-logging-derive.workspace = true
+mcr-logging.workspace = true
+mcr-mailbox-controller.workspace = true
+mcr-mem-map.workspace = true
+mcr-registers.workspace = true
+mcr-self-test.workspace = true
+mcr-simplex.workspace = true
+mcr-soc.workspace = true
+mcr-tcon.workspace = true
+mcr-types.workspace = true
+minicbor.workspace = true
+mockall_double.workspace = true
+open-enum.workspace = true
+static_assertions.workspace = true
+zerocopy.workspace = true
+zeroize.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+env_logger.workspace = true
+hmac.workspace = true
+lazy_static.workspace = true
+mockall.workspace = true
+openssl.workspace = true
+rand.workspace = true
+sha2.workspace = true
+test-log.workspace = true
+x509-parser.workspace = true
+
+
+[build-dependencies]
+asn1 = { workspace = true, optional = true }
+bitfield = { workspace = true, optional = true }
+cfg-if = { workspace = true }
+convert_case = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+openssl = { workspace = true, optional = true }
+quote = { workspace = true, optional = true }
+syn = { workspace = true, optional = true }
+
+[features]
+default = ["std"]
+std = ["mcr-exception-handlers/std", "mcr-cpu/std"]
+rust_analyzer_fix = []
+mcr_test_hooks = ["mcr-dtcm-controller/mcr_test_hooks", "mcr-cdma/mcr_test_hooks", "mcr-itcm-controller/mcr_test_hooks", "mcr-gdma-controller/mcr_test_hooks"]
+mcr_test_hooks_cdma_ecc_err = []
+mcr_manual_test_hooks = []
+disable_io_timeout_handling = []
+log_level_info = []
+fips_validation_hooks = ["mcr-crypto-aes/fips_validation_hooks","mcr-crypto-pka/fips_validation_hooks","mcr-crypto-rng/fips_validation_hooks","mcr-crypto-sha/fips_validation_hooks","mcr-soc/fips_validation_hooks"]
+idfu_fault_pre_reset_hsm_shutdown_ipc_resp_err = []
+idfu_fault_pre_reset_hsm_shutdown_ipc_no_resp_err = []
+idfu_fault_pre_reset_hsm_drain_timeout = []
+generate_templates = ["dep:asn1", "dep:bitfield", "dep:convert_case", "dep:hex", "dep:openssl", "dep:quote", "dep:syn"]

@@ -1,0 +1,18 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-soc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mcr-cpu.workspace = true
+mcr-mem-map.workspace = true
+mcr-registers.workspace = true
+mcr-self-test.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+fips_validation_hooks = []

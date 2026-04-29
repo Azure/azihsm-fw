@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2021-2026 Marvell
+
+# ignore _out files
+_out

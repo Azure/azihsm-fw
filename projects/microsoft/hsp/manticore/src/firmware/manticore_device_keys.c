@@ -1,0 +1,603 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
+#include <stdbool.h>
+#include <string.h>
+#include "manticore_device_keys.h"
+#include "common/buffer_util.h"
+#include "logging/code_path_integrity.h"
+#include "logging/manticore_logging.h"
+#include "rom/device_keys.h"
+
+
+/**
+ * The value to use for a specific checkpoint step.  This uses the key management module ID to
+ * provide uniqueness.
+ */
+#define	MANTICORE_DEVICE_KEYS_CHKPT_VALUE(x)		((MANTICORE_MODULE_DEVICE_KEYS << 8) | (x))
+
+/**
+ * Checkpoint values used when applying memory protections.
+ */
+enum {
+	MANTICORE_DEVICE_KEYS_CHKPT_CONVERT_START =
+		MANTICORE_DEVICE_KEYS_CHKPT_VALUE (0x01),	/**< Start conversion of a key to an approved key. */
+	MANTICORE_DEVICE_KEYS_CHKPT_CONVERT_END =
+		MANTICORE_DEVICE_KEYS_CHKPT_VALUE (0x02),	/**< Finish conversion of a key to an approved key. */
+	MANTICORE_DEVICE_KEYS_CHKPT_CONVERT_1SP_KEYS =
+		MANTICORE_DEVICE_KEYS_CHKPT_VALUE (0x03),	/**< Start conversion of all 1SP keys to approved keys. */
+	MANTICORE_DEVICE_KEYS_CHKPT_APPROVED_DICE =
+		MANTICORE_DEVICE_KEYS_CHKPT_VALUE (0x04),	/**< Start generation of the approved DICE identity key. */
+	MANTICORE_DEVICE_KEYS_CHKPT_CONVERT_1SP_KEYS_DONE =
+		MANTICORE_DEVICE_KEYS_CHKPT_VALUE (0x05),	/**< Done conversion of all 1SP keys. */
+	MANTICORE_DEVICE_KEYS_CHKPT_DERIVE_1SP_KEYS =
+		MANTICORE_DEVICE_KEYS_CHKPT_VALUE (0x06),	/**< Derive keys needed for 1SP execution. */
+	MANTICORE_DEVICE_KEYS_CHKPT_DERIVE_1SP_KEYS_DONE =
+		MANTICORE_DEVICE_KEYS_CHKPT_VALUE (0x07),	/**< Done derivation of 1SP keys. */
+	MANTICORE_DEVICE_KEYS_CHKPT_CLEAR_1SP_KEYS =
+		MANTICORE_DEVICE_KEYS_CHKPT_VALUE (0x08),	/**< Clear keys that should not be available for SPRT. */
+	MANTICORE_DEVICE_KEYS_CHKPT_CLEAR_1SP_KEYS_DONE =
+		MANTICORE_DEVICE_KEYS_CHKPT_VALUE (0x09),	/**< Done clearing 1SP keys. */
+};
+
+
+/**
+ * ROM does not generate FIPS approved keys due to the lack of self-test for the CCS KDF
+ * implementation.  This will convert an unapproved key to an approved one.  The CCS KDF must be
+ * appropriately self-tested prior to this call.
+ *
+ * This process involves extracting the unapproved key from KSU, deriving a new key using the
+ * extracted key as the KDF context, and putting the new one back in KSU.
+ * - KDF the source key to a key with the DeriveFWKeyAllowed attribute.
+ * - HMAC context data using the intermediate key.
+ * - Push a static key into KSU.
+ * - KDF the static key using the HMAC output as the context.
+ * - The resulting key is approved and deterministic based on the source key.
+ *
+ * A side-effect of this transformation is that no key generated in this way will have the
+ * IsDeviceSecret attribute set.
+ *
+ * @param ccs The driver for the CCS containing the key.
+ * @param unapproved_key Key slot containing on unapproved key.  This must have either the
+ * KDFKeyAllowed or DeriveFWKeyAllowed attribute set.
+ * @param kdf_key Key to use with the KDF for deriving the new key.
+ * @param kdf_context Context to use with KDFs for deriving the new key.
+ * @param approved_key Key slot to store the approved key.  The new key will have the same
+ * attributes as the unapproved key except that IsDeviceSecret will be removed.  This can be the
+ * same slot as the unapproved key.
+ *
+ * @return 0 if the approved key was successfully generated or an error code.
+ */
+int manticore_device_keys_convert_to_approved_key (const struct ccs_ksu_interface *ccs,
+	uint8_t unapproved_key, const SP_MSG_384 *kdf_key, const SP_MSG_384 *kdf_context,
+	uint8_t approved_key)
+{
+	SP_MSG_384 key_hmac = {0};
+	uint32_t attributes;
+	uint8_t hmac_slot = approved_key;
+	int status;
+
+	code_path_integrity_secure_message_no_trace (MANTICORE_DEVICE_KEYS_CHKPT_CONVERT_START);
+
+	if ((ccs == NULL) || (kdf_key == NULL) || (kdf_context == NULL)) {
+		return MANTICORE_DEVICE_KEYS_INVALID_ARGUMENT;
+	}
+
+	status = ccs->get_key_attributes (ccs, unapproved_key, &attributes);
+	if (status != 0) {
+		return status;
+	}
+
+	if (!(attributes & CCS_KSU_ATTR_DERIVE_FW_KEY_ALLOWED)) {
+		status = ccs->derive_key (ccs, unapproved_key, kdf_context, approved_key,
+			CCS_KSU_ATTR_DERIVE_FW_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+		if (status != 0) {
+			return status;
+		}
+	}
+	else {
+		hmac_slot = unapproved_key;
+	}
+
+	status = ccs->hmac (ccs, hmac_slot, kdf_context->AsBytes, SP_MSG_384_SIZE, &key_hmac, NULL);
+	if (status != 0) {
+		goto exit;
+	}
+
+	status = ccs->set_key (ccs, kdf_key, approved_key,
+		CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+	if (status != 0) {
+		goto exit;
+	}
+
+	status = ccs->derive_key (ccs, approved_key, &key_hmac, approved_key, attributes);
+
+exit:
+	buffer_zeroize (key_hmac.AsBytes, SP_MSG_384_SIZE);
+	if (status != 0) {
+		return status;
+	}
+
+	code_path_integrity_secure_message_no_trace (MANTICORE_DEVICE_KEYS_CHKPT_CONVERT_END ^ status);
+
+	return 0;
+}
+
+/**
+ * Update the keys present in the KSU that are used by 1SP and generated by ROM to FIPS approved
+ * keys.
+ *
+ * @param fips_ccs The CCS instance for the keys to initialize.  This must be FIPS compliant for
+ * generating ECDSA signatures.
+ * @param hw_css The driver for the CCS hardware. This must be able to produce an ECC signature
+ * using unapproved DICE Device ID key generated by ROM.
+ * @param ecc ECC hardware driver to use for verifying derived ECC keys.
+ * @param hash Hash engine to use for populating the DME structure for DICE endorsement.
+ * @param kdf_key Key to use with the KDF for deriving new keys.
+ * @param kdf_context Context to use with KDFs for deriving new keys.
+ * @param rom_dm The DME structure generated by ROM for the unapproved DICE key.
+ * @param device_id The DICE device ID public key.  On input, this must contain the unapproved DICE
+ * key generated by ROM.  On output, it will be updated to contain the approved DICE device ID.
+ * @param dme Output for the DME structure endorsing the DICE device ID public key.
+ *
+ * @return 0 if all keys were initialized successfully or an error code.
+ */
+int manticore_device_keys_convert_1sp_keys (const struct ccs_ksu_interface *fips_ccs,
+	const struct ccs_ksu_interface *hw_ccs, const struct ecc_hw *ecc,
+	const struct hash_engine *hash, const SP_MSG_384 *kdf_key, const SP_MSG_384 *kdf_context,
+	const struct device_keys_dice_endorsement *rom_dme, SP_ECDSA_P384_PUBLIC *device_id,
+	struct manticore_device_keys_dice_endorsement *dme)
+{
+	SP_MSG_384 digest = {0};
+	int status;
+
+	code_path_integrity_secure_message_no_trace (MANTICORE_DEVICE_KEYS_CHKPT_CONVERT_1SP_KEYS);
+
+	if ((hw_ccs == NULL) || (ecc == NULL) || (hash == NULL) || (rom_dme == NULL) ||
+		(device_id == NULL) || (dme == NULL)) {
+		return MANTICORE_DEVICE_KEYS_INVALID_ARGUMENT;
+	}
+
+	status = manticore_device_keys_convert_to_approved_key (fips_ccs, DEVICE_KEYS_DICE_CDI, kdf_key,
+		kdf_context, DEVICE_KEYS_DICE_CDI);
+	if (status != 0) {
+		return status;
+	}
+
+	status = manticore_device_keys_convert_to_approved_key (fips_ccs, DEVICE_KEYS_DEVICE_KEY,
+		kdf_key, kdf_context, DEVICE_KEYS_DEVICE_KEY);
+	if (status != 0) {
+		return status;
+	}
+
+	status = manticore_device_keys_convert_to_approved_key (fips_ccs, DEVICE_KEYS_OWNER_GLOBAL_KEY,
+		kdf_key, kdf_context, DEVICE_KEYS_OWNER_GLOBAL_KEY);
+	if (status != 0) {
+		return status;
+	}
+
+	code_path_integrity_secure_message_no_trace (MANTICORE_DEVICE_KEYS_CHKPT_APPROVED_DICE ^
+		status);
+
+	/* Generate a new DICE Device ID from the FIPS approved CDI.  A critical aspect of this process
+	 * is that endorsement from DME needs to be maintained for this new Device ID key.  Since the
+	 * DME key doesn't exist in this context (zeroized by ROM), a chained endorsement needs to be
+	 * used, leveraging DME structure type 8.  This structure includes the entire DME structure
+	 * generated by ROM and adds the following pieces:
+	 *   - The raw P-384 public key for the FIPS unapproved Device ID key.  This is necessary to
+	 *     match against the hash from the DME endorsement, establishing trust in the key.
+	 *   - The SHA-384 hash of the FIPS approved Device ID key.  This serves the same role as the
+	 *     public key hash in the ROM-generated structure.
+	 *   - An ECDSA signature of the whole structure using the FIPS unapproved Device ID key.  Much
+	 *     like an X.509 certificate chain, this endorses the FIPS Device ID key by the key rooted
+	 *     with DME. */
+	memcpy (&dme->signed_data.rom, rom_dme, sizeof (dme->signed_data.rom));
+	memcpy (dme->signed_data.rom_key.AsBytes, device_id->AsBytes, SP_ECDSA_P384_PUBLIC_KEY_SIZE);
+
+	status = ccs_ksu_interface_derive_ecdsa_key (fips_ccs, ecc, hash, DEVICE_KEYS_DICE_CDI,
+		MANTICORE_DEVICE_KEYS_FIPS_DEVICE_ID_KEY,
+		CCS_KSU_ATTR_IS_DEVICE_SECRET | CCS_KSU_ATTR_ECC_SIGN_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384,
+		(union ccs_ksu_ecc_public_key*) device_id);
+	if (status != 0) {
+		return status;
+	}
+
+	status = hash->calculate_sha384 (hash, device_id->AsBytes, SP_ECDSA_P384_PUBLIC_KEY_SIZE,
+		dme->signed_data.device_id_hash.AsBytes, SP_MSG_384_SIZE);
+	if (status != 0) {
+		return status;
+	}
+
+	status = hash->calculate_sha384 (hash, (uint8_t*) &dme->signed_data, sizeof (dme->signed_data),
+		digest.AsBytes, SP_MSG_384_SIZE);
+	if (status != 0) {
+		return status;
+	}
+
+	status = hw_ccs->ecc_sign (hw_ccs, MANTICORE_DEVICE_KEYS_NON_FIPS_DEVICE_ID_KEY, &digest, NULL,
+		&dme->signature, NULL);
+	if (status != 0) {
+		return status;
+	}
+
+	/* The FIPS unapproved Device ID is no longer needed and must be zeroized.  Subsequent usage of
+	 * the DICE Device ID will only use the FIPS approved key. */
+	memset (digest.AsBytes, 0, SP_MSG_384_SIZE);
+
+	status = hw_ccs->set_key (hw_ccs, &digest, MANTICORE_DEVICE_KEYS_NON_FIPS_DEVICE_ID_KEY, 0);
+	if (status != 0) {
+		return status;
+	}
+
+	code_path_integrity_secure_message_no_trace (MANTICORE_DEVICE_KEYS_CHKPT_CONVERT_1SP_KEYS_DONE ^
+		status);
+
+	return 0;
+}
+
+/**
+ * Derive all keys needed for 1SP execution, excluding DICE keys.  This will generate the following
+ * keys:
+ * - HMAC key for signing and verifying encrypted image IV tables.
+ * - HMAC key for signing and verifying unlock policies.
+ * - Device seed for deriving SPRT keys.
+ *
+ * @param ccs The CCS instance to use for key derivations.
+ * @param sec_manager Device security manager for managing the unlock HMAC key.
+ * @param context KDF context to use during key derivation.
+ * @param is_fips_certified Flag indicating that the 1SP is FIPS certified.  If this is false, some
+ * keys will get morphed for non-FIPS usage.
+ *
+ * @return 0 if all keys were derived successfully or an error code.
+ */
+int manticore_device_keys_derive_1sp_keys (const struct ccs_ksu_interface *ccs,
+	const struct security_manager_hsp *sec_manager,
+	const struct manticore_device_keys_1sp_kdf *context, bool is_fips_certified)
+{
+	const SP_MSG_384 *unlock_context;
+	int status;
+
+	code_path_integrity_secure_message_no_trace (MANTICORE_DEVICE_KEYS_CHKPT_DERIVE_1SP_KEYS);
+
+	if ((ccs == NULL) || (sec_manager == NULL) || (context == NULL)) {
+		return MANTICORE_DEVICE_KEYS_INVALID_ARGUMENT;
+	}
+
+	if (is_fips_certified) {
+		unlock_context = context->fips_unlock;
+	}
+	else {
+		unlock_context = context->non_fips_unlock;
+	}
+
+	status = ccs->derive_key (ccs, DEVICE_KEYS_DEVICE_KEY, unlock_context,
+		MANTICORE_DEVICE_KEYS_UNLOCK_HMAC_SEED,
+		CCS_KSU_ATTR_IS_DEVICE_SECRET | CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+	if (status != 0) {
+		return status;
+	}
+
+	status = security_manager_hsp_derive_hmac_key (sec_manager,
+		MANTICORE_DEVICE_KEYS_UNLOCK_HMAC_SEED);
+	if (status != 0) {
+		return status;
+	}
+
+	status = ccs->derive_key (ccs, DEVICE_KEYS_DEVICE_KEY, context->firmware_hmac,
+		MANTICORE_DEVICE_KEYS_FW_IMAGE_HMAC_KEY,
+		CCS_KSU_ATTR_IS_DEVICE_SECRET | CCS_KSU_ATTR_DERIVE_FW_KEY_ALLOWED |
+		CCS_KSU_ATTR_KEY_SIZE_384);
+	if (status != 0) {
+		return status;
+	}
+
+	status = ccs->derive_key (ccs, DEVICE_KEYS_DEVICE_KEY, context->sprt_device_key,
+		MANTICORE_DEVICE_KEYS_SPRT_DEVICE_KEY,
+		CCS_KSU_ATTR_IS_DEVICE_SECRET | CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+	if (status != 0) {
+		return status;
+	}
+
+	code_path_integrity_secure_message_no_trace (MANTICORE_DEVICE_KEYS_CHKPT_DERIVE_1SP_KEYS_DONE ^
+		status);
+
+	return 0;
+}
+
+/**
+ * Clear any key slots for keys used by 1SP that should not be shared with SPRT.
+ *
+ * @param ccs The CCS instance to clear.
+ *
+ * @return 0 if all keys for 1SP use only have been cleared or an error code.
+ */
+int manticore_device_keys_clear_1sp_keys (const struct ccs_ksu_interface *ccs)
+{
+	SP_MSG_384 zero = {0};
+	int status;
+
+	code_path_integrity_secure_message_no_trace (MANTICORE_DEVICE_KEYS_CHKPT_CLEAR_1SP_KEYS);
+
+	if (ccs == NULL) {
+		return MANTICORE_DEVICE_KEYS_INVALID_ARGUMENT;
+	}
+
+	/* There is no need to spend time clearing every slot after MANTICORE_DEVICE_KEYS_1SP_KSU_SLOTS
+	 * since most are unused and MANTICORE_DEVICE_KEYS_FIPS_DEVICE_ID_KEY is cleared by DICE
+	 * handling. */
+	status = ccs->set_key (ccs, &zero, MANTICORE_DEVICE_KEYS_UNLOCK_HMAC_SEED, 0);
+	if (status != 0) {
+		return status;
+	}
+
+	code_path_integrity_secure_message_no_trace (MANTICORE_DEVICE_KEYS_CHKPT_CLEAR_1SP_KEYS_DONE ^
+		status);
+
+	return 0;
+}
+
+/**
+ * Derive new device-unique key seeds for use with unlocked devices.  Seeds that could be used by
+ * SPRT to derive new keys should not be the same between locked and unlocked devices, protecting
+ * the production keys.
+ *
+ * - Firmware AES and HMAC keys will be unchanged since they would not be used to derive new keys.
+ * - Tenancy key will be unchanged since it's needed to generate tenancy grant tokens.
+ * - DICE keys will be managed by the security manager and DICE handler.
+ * - Unlock HMAC key will be cleared by the security manager.
+ * - Owner global key and SPRT device key will get derived into new keys.
+ * - Hash stick key will get derived into a new key.  This means that the hash stick key will not
+ *   retain the hash stick properties on unlocked devices.  Meaning, older keys cannot be
+ *   regenerated in this context.
+ *
+ * @param ccs The CCS instance to use for key derivations.
+ * @param context KDF context to use for deriving new device keys.
+ *
+ * @return 0 if the keys were replaced successfully or an error code.
+ */
+int manticore_device_keys_derive_unlocked_1sp_keys (const struct ccs_ksu_interface *ccs,
+	const SP_MSG_384 *context)
+{
+	int status;
+
+	if ((ccs == NULL) || (context == NULL)) {
+		return MANTICORE_DEVICE_KEYS_INVALID_ARGUMENT;
+	}
+
+	status = ccs->derive_key (ccs, DEVICE_KEYS_OWNER_GLOBAL_KEY, context,
+		DEVICE_KEYS_OWNER_GLOBAL_KEY, CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+	if (status != 0) {
+		return status;
+	}
+
+	status = ccs->derive_key (ccs, MANTICORE_DEVICE_KEYS_HASH_STICK_KEY, context,
+		MANTICORE_DEVICE_KEYS_HASH_STICK_KEY,
+		CCS_KSU_ATTR_IS_DEVICE_SECRET | CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+	if (status != 0) {
+		return status;
+	}
+
+	return ccs->derive_key (ccs, MANTICORE_DEVICE_KEYS_SPRT_DEVICE_KEY, context,
+		MANTICORE_DEVICE_KEYS_SPRT_DEVICE_KEY,
+		CCS_KSU_ATTR_IS_DEVICE_SECRET | CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+}
+
+/**
+ * Derive new device keys for use by SRPT when operating in FIPS non-certified mode.
+ *
+ * - SPRT device key will be derived into a new key.
+ * - Owner global key will not be changed.  Workflows that use this key will handle FIPS vs.
+ *   Non-FIPS on their own.
+ * - Hash stick key will not be changed to maintain hash stick properties.  There is also no current
+ *   use-case defined for this key.
+ * - The DICE CDI will be updated so that Alias keys are generated differently from the FIPS
+ *   certified scenario.
+ *
+ * @param ccs The CCS instance to use for key derivations.
+ * @param context KDF context to use for deriving new device keys.
+ * @param sec_manager Optional security manager for the unlock HMAC key.  If this is provided, the
+ * unlock HMAC key will be regenerated as a different key from the one used by 1SP, to keep
+ * isolation between FIPS and Non-FIPS contexts for this key.
+ *
+ * @return 0 if new keys were derived successfully or an error code.
+ */
+int manticore_device_keys_derive_non_fips_sprt_keys (const struct ccs_ksu_interface *ccs,
+	const SP_MSG_384 *context, const struct security_manager_hsp *sec_manager)
+{
+	int status;
+
+	if ((ccs == NULL) || (context == NULL)) {
+		return MANTICORE_DEVICE_KEYS_INVALID_ARGUMENT;
+	}
+
+	status = ccs->derive_key (ccs, DEVICE_KEYS_DICE_CDI, context, DEVICE_KEYS_DICE_CDI,
+		CCS_KSU_ATTR_IS_DEVICE_SECRET | CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+	if (status != 0) {
+		return status;
+	}
+
+	status = ccs->derive_key (ccs, MANTICORE_DEVICE_KEYS_SPRT_DEVICE_KEY, context,
+		MANTICORE_DEVICE_KEYS_SPRT_DEVICE_KEY,
+		CCS_KSU_ATTR_IS_DEVICE_SECRET | CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+	if (status != 0) {
+		return status;
+	}
+
+	if (sec_manager != NULL) {
+		/* Derive a different unlock HMAC key to avoid shared keys between FIPS and Non-FIPS
+		 * execution.  This means that a firmware image using a FIPS certified 1SP and non-FIPS
+		 * certified SPRT cannot successfully be unlocked since the HMAC key would be different in
+		 * each context. */
+		debug_log_create_entry (DEBUG_LOG_SEVERITY_INFO, DEBUG_LOG_COMPONENT_MANTICORE,
+			MANTICORE_LOGGING_UNLOCK_INCOMPATIBLE, 0, 0);
+
+		status = ccs->derive_key (ccs, MANTICORE_DEVICE_KEYS_UNLOCK_HMAC_SEED, context,
+			MANTICORE_DEVICE_KEYS_UNLOCK_HMAC_SEED,
+			CCS_KSU_ATTR_IS_DEVICE_SECRET | CCS_KSU_ATTR_KDF_KEY_ALLOWED |
+			CCS_KSU_ATTR_KEY_SIZE_384);
+		if (status != 0) {
+			return status;
+		}
+
+		status = security_manager_hsp_derive_hmac_key (sec_manager,
+			MANTICORE_DEVICE_KEYS_UNLOCK_HMAC_SEED);
+		if (status != 0) {
+			return status;
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * Derive the keys used to generate the Backup Key Seeds (BKS) for HSM Masking Key generation.  Both
+ * keys will be derived from the Owner Global Key.  Once the seeds have been derived, an Owner
+ * Global Key for SPRT usage will be derived.
+ *
+ * BKS1 will be derived as a hash stick key, based on the SVN value of the run-time firmware image.
+ *
+ * BKS1 and BKS2 keys will be 256-bit keys.  The SPRT global key will be 384 bits.
+ *
+ * @param ccs The CCS instance to use for key derivations.
+ * @param bks_fips_context The context to use for deriving an isolated set of BKS values in FIPS
+ * approved mode.  If this is null, to BKS isolation will be performed.
+ * @param bks1_context The context to use for deriving the BKS1 hash stick key.  This will only be
+ * used for deriving the first key.  The hash stick will use a zero context for derivation.
+ * @param bks1_svn The SVN to use for determining the number of hash stick derivations to execute on
+ * BKS1.  The SVN must be represented as a sequence of 0s followed by a sequence of 1s, starting
+ * from the MSB.
+ * @param bks2_context The context to use for deriving the BKS2 key.
+ * @param sprt_context The context to use for deriving the SPRT Owner Global Key.
+ *
+ * @return 0 if the BKS keys were derived successfully or an error code.
+ */
+int manticore_device_keys_derive_bks_keys (const struct ccs_ksu_interface *ccs,
+	const SP_MSG_384 *bks_fips_context, const SP_MSG_384 *bks1_context, uint64_t bks1_svn,
+	const SP_MSG_384 *bks2_context, const SP_MSG_384 *sprt_context)
+{
+	const uint64_t svn_msb = (1ULL << 63);
+	SP_MSG_384 zero = {0};
+	uint8_t bks_src_key = DEVICE_KEYS_OWNER_GLOBAL_KEY;
+	int i;
+	int status;
+
+	if ((ccs == NULL) || (bks1_context == NULL) || (bks2_context == NULL) ||
+		(sprt_context == NULL)) {
+		return MANTICORE_DEVICE_KEYS_INVALID_ARGUMENT;
+	}
+
+	if (bks_fips_context != NULL) {
+		status = ccs->derive_key (ccs, DEVICE_KEYS_OWNER_GLOBAL_KEY, bks_fips_context,
+			MANTICORE_DEVICE_KEYS_FIPS_BKS,
+			CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+		if (status != 0) {
+			return status;
+		}
+
+		bks_src_key = MANTICORE_DEVICE_KEYS_FIPS_BKS;
+	}
+
+	status = ccs->derive_key (ccs, bks_src_key, bks1_context, MANTICORE_DEVICE_KEYS_BKS1,
+		CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_AES_ENCRYPT_ALLOWED);
+	if (status != 0) {
+		return status;
+	}
+
+	i = 0;
+	while (!(bks1_svn & svn_msb) && (i++ < 64)) {
+		status = ccs->derive_key (ccs, MANTICORE_DEVICE_KEYS_BKS1, &zero,
+			MANTICORE_DEVICE_KEYS_BKS1,
+			CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_AES_ENCRYPT_ALLOWED);
+		if (status != 0) {
+			return status;
+		}
+
+		bks1_svn <<= 1;
+	}
+
+	status = ccs->derive_key (ccs, bks_src_key, bks2_context, MANTICORE_DEVICE_KEYS_BKS2,
+		CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_AES_ENCRYPT_ALLOWED);
+	if (status != 0) {
+		return status;
+	}
+
+	status = ccs->derive_key (ccs, DEVICE_KEYS_OWNER_GLOBAL_KEY, sprt_context,
+		MANTICORE_DEVICE_KEYS_SPRT_OWNER_GLOBAL_KEY,
+		CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_KEY_SIZE_384);
+	if (status != 0) {
+		return status;
+	}
+
+	return 0;
+}
+
+/**
+ * Export the full table of Backup Key Seeds available for use by the HSM.
+ *
+ * @param aes The AES instance to use for exporting the BKS values based on the KSU keys.
+ * @param bks_context Constant data to encrypt to generate the BKS values.  The same context is used
+ * to export all seeds.
+ * @param ccs The CCS instance to use for additional BKS1 hash stick key derivations.
+ * @param svn The current SVN for the running image.  The SVN must be represented as a sequence of
+ * 0s followed by a sequence of 1s, starting from the MSB.
+ * @param bks_table Output for the table of BKS values generated from the KSU keys.
+ *
+ * @return 0 if the BKS table was generated successfully or an error code.
+ */
+int manticore_device_keys_export_bks (const struct hsp_aes *aes, const SP_MSG_256 *bks_context,
+	const struct ccs_ksu_interface *ccs, uint64_t svn,
+	struct manticore_device_keys_bks_table *bks_table)
+{
+	SP_MSG_384 zero = {0};
+	int i;
+	bool last = false;
+	int status;
+
+	if ((aes == NULL) || (bks_context == NULL) || (ccs == NULL) || (bks_table == NULL)) {
+		return MANTICORE_DEVICE_KEYS_INVALID_ARGUMENT;
+	}
+
+	memset (bks_table, 0, sizeof (*bks_table));
+
+	/* BKS1.  Export the current seed and up to 10 previous seeds. */
+	i = 0;
+	do {
+		status = aes->encrypt (aes, HSP_AES_MODE_ECB, MANTICORE_DEVICE_KEYS_BKS1, NULL,
+			bks_context->AsBytes, SP_MSG_256_SIZE, bks_table->entry[i].bks,
+			sizeof (bks_table->entry[i].bks), NULL);
+		if (status != 0) {
+			return status;
+		}
+
+		bks_table->entry[i].svn = svn;
+		bks_table->entry[i].valid = 1;
+
+		/* Derive the next key in the hash stick.  There is no need to keep the previous key
+		 * available.  If this was the last BKS1 to export, do not run the derivation again. */
+		if ((svn != 0) && (i < 10)) {
+			status = ccs->derive_key (ccs, MANTICORE_DEVICE_KEYS_BKS1, &zero,
+				MANTICORE_DEVICE_KEYS_BKS1,
+				CCS_KSU_ATTR_KDF_KEY_ALLOWED | CCS_KSU_ATTR_AES_ENCRYPT_ALLOWED);
+			if (status != 0) {
+				return status;
+			}
+
+			svn >>= 1;
+			i++;
+		}
+		else {
+			last = true;
+		}
+	} while (!last);
+
+	/* BKS2.  This is always stored in the last table entry. */
+	status = aes->encrypt (aes, HSP_AES_MODE_ECB, MANTICORE_DEVICE_KEYS_BKS2, NULL,
+		bks_context->AsBytes, SP_MSG_256_SIZE, bks_table->entry[11].bks,
+		sizeof (bks_table->entry[11].bks), NULL);
+	if (status != 0) {
+		return status;
+	}
+
+	bks_table->entry[11].valid = 1;
+
+	return 0;
+}

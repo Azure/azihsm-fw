@@ -1,0 +1,18 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "mcr-mem-map"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+mcr-gdma-controller.workspace = true
+mcr-io-controller.workspace = true
+mcr-ipc-controller.workspace = true
+mcr-mem-map-derive.workspace = true
+mcr-self-test.workspace = true
+mcr-types.workspace = true
+static_assertions.workspace = true

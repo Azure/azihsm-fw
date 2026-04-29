@@ -1,0 +1,8 @@
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/CMakeFiles/edit_cache.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/CMakeFiles/rebuild_cache.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/cmake/dc_scm_1sp/CMakeFiles/dc_scm_1sp.elf.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/cmake/dc_scm_1sp/CMakeFiles/edit_cache.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/cmake/dc_scm_1sp/CMakeFiles/rebuild_cache.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/cmake/dc_scm_sprt/CMakeFiles/dc_scm_sprt.elf.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/cmake/dc_scm_sprt/CMakeFiles/edit_cache.dir
+/home/tselvam/oss-release/azihsm-fw/projects/microsoft/hsp/manticore/sp/build-prod/cmake/dc_scm_sprt/CMakeFiles/rebuild_cache.dir
