@@ -40,7 +40,7 @@
 /**
  * Stack size for the IPC handler task for the HSM core.
  */
-#define	HSM_TO_HSP_TASK_STACK_WORDS				(8 * 256)
+#define	HSM_TO_HSP_TASK_STACK_WORDS				(6 * 256)
 
 /**
  * Stack size for the state persistence task.
@@ -78,7 +78,12 @@
 /**
  * Stack size for the Ephemeral key manager task
  */
-#define	EPHEMERAL_KEY_MANAGER_TASK_STACK_WORDS	(4 * 256)
+#define	EPHEMERAL_KEY_MANAGER_TASK_STACK_WORDS	(3 * 256)
+
+/**
+ * Stack size for the Ephemeral key monitor task
+ */
+#define	EPHEMERAL_KEY_MONITOR_TASK_STACK_WORDS	(3 * 256)
 
 
 #endif	/* TASK_STACK_SIZE_H_ */

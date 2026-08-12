@@ -15,8 +15,10 @@ extern "C" {
     fn ucd_irq();
     fn ucd_err_irq();
     fn ucd_ibcq_irq();
+    fn ucd_ib_err_irq();
     fn ucd_ibcq_rr1_irq();
     fn ucd_ibcq_rr2_irq();
+    fn ucd_ob_err_irq();
     fn ucd_obcq_rr1_irq();
     fn ucd_obcq_rr2_irq();
     fn pcie_irq();
@@ -189,11 +191,17 @@ pub enum Interrupt {
     /// UCD Inbound Completion Queue IRQ
     ucd_ibcq_irq = 98,
 
+    /// UCD Inbound Completion Queue Error IRQ
+    ucd_ib_err_irq = 99,
+
     /// UCD Inbound Completion Queue Round Robin Priority 1 IRQ
     ucd_ibcq_rr1_irq = 102,
 
     /// UCD Inbound Completion Queue Round Robin Priority 2 IRQ
     ucd_ibcq_rr2_irq = 103,
+
+    /// UCD Outbound Completion Queue Error IRQ
+    ucd_ob_err_irq = 106,
 
     /// UCD Outbound Completion Queue Round Robin Priority 1 IRQ
     ucd_obcq_rr1_irq = 109,
@@ -379,16 +387,22 @@ impl Interrupt {
     pub const UcdIrq: Interrupt = Interrupt::ucd_irq;
 
     /// UCD Error IRQ
-    pub const UcdErrIrq: Interrupt = Interrupt::ucd_err_irq;
+    pub const UcdCmnErrIrq: Interrupt = Interrupt::ucd_err_irq;
 
     /// UCD Inbound Completion Queue IRQ
     pub const UcdIbcqIrq: Interrupt = Interrupt::ucd_ibcq_irq;
+
+    /// UCD Inbound Completion Queue Error IRQ
+    pub const UcdIbErrIrq: Interrupt = Interrupt::ucd_ib_err_irq;
 
     /// UCD Inbound Completion Queue Round Robin Priority 1 IRQ
     pub const UcdIbcqRr1Irq: Interrupt = Interrupt::ucd_ibcq_rr1_irq;
 
     /// UCD Inbound Completion Queue Round Robin Priority 2 IRQ
     pub const UcdIbcqRr2Irq: Interrupt = Interrupt::ucd_ibcq_rr2_irq;
+
+    /// UCD Outbound Completion Queue Error IRQ
+    pub const UcdObErrIrq: Interrupt = Interrupt::ucd_ob_err_irq;
 
     /// UCD Outbound Completion Queue Round Robin Priority 1 IRQ
     pub const UcdObcqRr1Irq: Interrupt = Interrupt::ucd_obcq_rr1_irq;

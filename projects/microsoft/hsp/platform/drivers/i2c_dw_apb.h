@@ -215,6 +215,7 @@ int i2c_dw_apb_try_handle_transaction (const struct i2c_dw_apb *i2c);
 int i2c_dw_apb_handle_transaction (const struct i2c_dw_apb *i2c);
 
 int i2c_dw_apb_enable_slave_mode (const struct i2c_dw_apb *i2c);
+int i2c_dw_apb_enable_slave_mode_isr (const struct i2c_dw_apb *i2c);
 int i2c_dw_apb_begin_master_transmit (const struct i2c_dw_apb *i2c, uint8_t target_address,
 	const uint8_t *data, size_t len);
 

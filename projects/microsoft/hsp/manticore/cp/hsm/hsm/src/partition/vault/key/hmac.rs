@@ -57,6 +57,7 @@ impl From<HmacKeyKind> for DdiHashAlgorithm {
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum HmacKeyUsage {
     SignVerify,
+    Derive,
 }
 
 impl TryFrom<DdiKeyUsage> for HmacKeyUsage {
@@ -65,6 +66,7 @@ impl TryFrom<DdiKeyUsage> for HmacKeyUsage {
     fn try_from(usage: DdiKeyUsage) -> Result<Self, Self::Error> {
         match usage {
             DdiKeyUsage::SignVerify => Ok(HmacKeyUsage::SignVerify),
+            DdiKeyUsage::Derive => Ok(HmacKeyUsage::Derive),
             _ => Err(HsmErr::InvalidPermissions),
         }
     }
@@ -103,6 +105,11 @@ impl HmacKey {
         match usage {
             HmacKeyUsage::SignVerify => {
                 if !attributes.common.flags.sign() || !attributes.common.flags.verify() {
+                    Err(HsmErr::InvalidPermissions)?
+                }
+            }
+            HmacKeyUsage::Derive => {
+                if !attributes.common.flags.derive() {
                     Err(HsmErr::InvalidPermissions)?
                 }
             }
@@ -284,6 +291,11 @@ impl VarLenHmacShaKey {
         match usage {
             HmacKeyUsage::SignVerify => {
                 if !attributes.common.flags.sign() || !attributes.common.flags.verify() {
+                    Err(HsmErr::InvalidPermissions)?
+                }
+            }
+            HmacKeyUsage::Derive => {
+                if !attributes.common.flags.derive() {
                     Err(HsmErr::InvalidPermissions)?
                 }
             }

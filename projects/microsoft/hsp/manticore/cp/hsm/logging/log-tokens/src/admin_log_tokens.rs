@@ -143,6 +143,13 @@ lazy_static::lazy_static! {
         m.insert("Invalid IPC message for TriggerStackValidation", 133);
         m.insert("Invalid stack error type", 134);
         m.insert("Memory management fault received. CFSR={:#x}, MMFAR={:#x}", 135);
+        m.insert("UCD IB Queue Overflow Error. Fault code: {}", 136);
+        m.insert("UCD IB DFL Overflow Error. Fault code: {}", 137);
+        m.insert("UCD IB error. c0=0x{:08x}, c1=0x{:08x}", 138);
+        m.insert("UCD OB Queue Full Error. Fault code: {}", 139);
+        m.insert("UCD OB error. c0=0x{:08x}, c1=0x{:08x}", 140);
+        m.insert("UCD IB Data Path Parity Error. c0=0x{:08x}, c1=0x{:08x}", 141);
+        m.insert("UCD IB Completion Queue Full Error. Fault code: {}", 142);
         m
     };
 }
@@ -286,6 +293,13 @@ lazy_static::lazy_static! {
         m.insert(133, "Invalid IPC message for TriggerStackValidation");
         m.insert(134, "Invalid stack error type");
         m.insert(135, "Memory management fault received. CFSR={:#x}, MMFAR={:#x}");
+        m.insert(136, "UCD IB Queue Overflow Error. Fault code: {}");
+        m.insert(137, "UCD IB DFL Overflow Error. Fault code: {}");
+        m.insert(138, "UCD IB error. c0=0x{:08x}, c1=0x{:08x}");
+        m.insert(139, "UCD OB Queue Full Error. Fault code: {}");
+        m.insert(140, "UCD OB error. c0=0x{:08x}, c1=0x{:08x}");
+        m.insert(141, "UCD IB Data Path Parity Error. c0=0x{:08x}, c1=0x{:08x}");
+        m.insert(142, "UCD IB Completion Queue Full Error. Fault code: {}");
         m
     };
 }
@@ -429,12 +443,19 @@ lazy_static::lazy_static! {
         m.insert(133, "[mcr_admin::handler]");
         m.insert(134, "[mcr_admin::handler]");
         m.insert(135, "[app::exception_handlers]");
+        m.insert(136, "[app::exception_handlers]");
+        m.insert(137, "[app::exception_handlers]");
+        m.insert(138, "[app::exception_handlers]");
+        m.insert(139, "[app::exception_handlers]");
+        m.insert(140, "[app::exception_handlers]");
+        m.insert(141, "[app::exception_handlers]");
+        m.insert(142, "[app::exception_handlers]");
         m
     };
 }
 
 #[allow(dead_code)]
-pub const MANTICORE_ADMIN_LOG_TOKENS: [&str; 136] = [
+pub const MANTICORE_ADMIN_LOG_TOKENS: [&str; 143] = [
     "Failed the self test {:?}",
     "Preop-Self test failed for {:?} with error {}",
     "[doe] on_rx_ready Failed to recv DOE message: {:?}",
@@ -571,4 +592,11 @@ pub const MANTICORE_ADMIN_LOG_TOKENS: [&str; 136] = [
     "Invalid IPC message for TriggerStackValidation",
     "Invalid stack error type",
     "Memory management fault received. CFSR={:#x}, MMFAR={:#x}",
+    "UCD IB Queue Overflow Error. Fault code: {}",
+    "UCD IB DFL Overflow Error. Fault code: {}",
+    "UCD IB error. c0=0x{:08x}, c1=0x{:08x}",
+    "UCD OB Queue Full Error. Fault code: {}",
+    "UCD OB error. c0=0x{:08x}, c1=0x{:08x}",
+    "UCD IB Data Path Parity Error. c0=0x{:08x}, c1=0x{:08x}",
+    "UCD IB Completion Queue Full Error. Fault code: {}",
 ];

@@ -22,6 +22,7 @@ enum {
 	I2C_DW_APB_NOT_SUPPORTED = I2C_DW_APB_ERROR (0x07),			/**< The operation is not supported for the device. */
 	I2C_DW_APB_INVALID_MODE = I2C_DW_APB_ERROR (0x08),			/**< The operation is not supported for the currently configured device mode. */
 	I2C_DW_APB_DISCARDING_RX = I2C_DW_APB_ERROR (0x09),			/**< An Rx operation failed due to the transaction being discarded. */
+	I2C_DW_APB_BUS_BUSY = I2C_DW_APB_ERROR (0x0A),				/**< Bus activity detected during HW disable; controller restored to slave mode. */
 };
 
 

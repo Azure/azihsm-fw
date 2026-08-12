@@ -4,6 +4,9 @@ use crate::lm_key_derive::MK_AES_CBC_256_HMAC384_SIZE_BYTES;
 
 use super::*;
 
+/// Max time tick count to wait for IPC resource
+const MAX_RESOURCE_WAIT_TIME: u8 = 16;
+
 type OpenSessionCmdCtx<E> = OpenSessionCtx<HsmPartitionEnv<E>>;
 
 /// FSM states
@@ -73,6 +76,9 @@ pub(crate) struct OpenSessionCmd<E: HsmEnvTrait + 'static> {
 
     /// Flag to indicate if the OP is ReopenSession or not
     is_reopen: bool,
+
+    /// Check Alive Counter
+    check_alive_cnt: u8,
 }
 
 impl<E: HsmEnvTrait> HsmCmdTrait<E> for OpenSessionCmd<E> {
@@ -90,6 +96,7 @@ impl<E: HsmEnvTrait> HsmCmdTrait<E> for OpenSessionCmd<E> {
             }
             (State::WaitForCmd, HsmFsmEvent::PkaDone(_))
             | (State::WaitForCmd, HsmFsmEvent::PkaError(_)) => self.on_cmd_complete(tag),
+            (_, HsmFsmEvent::CheckAlive) => self.check_alive(),
             (State::Final, _) => Err(HsmErr::InvalidState),
             (_, _) => Err(HsmErr::InvalidEvent),
         }
@@ -140,6 +147,22 @@ impl<E: HsmEnvTrait> OpenSessionCmd<E> {
             api_rev: None,
             decoded_req_common: None,
             is_reopen,
+            check_alive_cnt: 0,
+        }
+    }
+
+    fn check_alive(&mut self) -> Result<(), HsmErr> {
+        if self.state != State::WaitForEngine && self.state != State::WaitForCmd {
+            return Err(HsmErr::Pending);
+        }
+
+        if self.check_alive_cnt < MAX_RESOURCE_WAIT_TIME {
+            self.check_alive_cnt += 1;
+            Err(HsmErr::Pending)
+        } else {
+            self.check_alive_cnt = 0;
+            self.state = State::Final;
+            Err(HsmErr::IoTimeOut)
         }
     }
 

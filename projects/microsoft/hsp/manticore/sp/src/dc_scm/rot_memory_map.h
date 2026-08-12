@@ -451,6 +451,12 @@ static const uint32_t pcd_region_addr[2] = {
  */
 #define	BKS_TABLE_ADDRESS								GSRAM_MEM_MAP_BKS_TABLE
 
+/**
+ * SoC address in GSRAM of the HSM partition persistent store.  This region holds the RSA
+ * ephemeral unwrapping-key slots that are produced by the SP key cache and consumed by HSM.
+ */
+#define	HSM_PART_PERSISTENT_STORE_ADDRESS				GSRAM_MEM_MAP_HSM_PART_PERSISTENT_STORE
+
 
 /****************
  * PSRAM

@@ -119,8 +119,6 @@ mod env {
             type SoftAesResp = MockSimplexPipe<SoftAesOffloadResp>;
             type SelfTestReq=MockSimplexPipe<SelfTestReqPacket>;
             type SelfTestResp=MockSimplexPipe<SelfTestRespPacket>;
-            type GetBulkKeyReq=MockSimplexPipe<GetBulkKeyReqEntry>;
-            type GetBulkKeyResp=MockSimplexPipe<GetBulkKeyRespEntry>;
             type MailboxController = MockMailboxController;
 
             fn io_channel(&self) -> &<MockMockHal as HsmHalTrait>::IoChannel;
@@ -187,10 +185,6 @@ mod env {
 
             fn self_test_resp(&self) -> &MockSimplexPipe<SelfTestRespPacket>;
 
-            fn get_bulk_key_req(&self) -> &MockSimplexPipe<GetBulkKeyReqEntry>;
-
-            fn get_bulk_key_resp(&self) -> &MockSimplexPipe<GetBulkKeyRespEntry>;
-
             fn notify_self_test_failure(&self, test_id: SelfTest);
 
             fn notify_pct_validation_failure(&self, err: u32);
@@ -251,7 +245,13 @@ mod partition {
 
             fn clear_unwrapping_key(&mut self) -> HsmResult<()>;
 
+            fn set_unwrapping_key_required(&self, required: bool);
+
             fn unwrapping_key_id(&self) -> Option<KeyId>;
+
+            fn is_unwrapping_key_pct_verified(&self) -> bool;
+
+            fn mark_unwrapping_key_pct_verified(&mut self);
 
             fn store_data(&self);
 
@@ -550,6 +550,9 @@ mod partition {
             #[cfg(all(feature = "mcr_test_hooks", feature = "fips_validation_hooks"))]
             fn neg_pct_skip_cnt(&self, cnt: Option<u8>) -> Option<u8>;
 
+            #[cfg(all(feature = "mcr_test_hooks", feature = "fips_validation_hooks"))]
+            fn reset_unwrapping_key_pct(&self);
+
             #[cfg(all(feature = "mcr_test_hooks", feature = "mcr_test_hooks_cdma_ecc_err"))]
             fn get_corr_ecc_err_intr_count(&self) -> Option<u32>;
 
@@ -560,7 +563,6 @@ mod partition {
 
             fn clear_provisioning_state(&self) -> HsmResult<()>;
 
-            fn get_cdma_vaultkey_entry(&self, key_id: AesBulk256KeyId) -> HsmResult<IoMemRange>;
         }
 
         impl Clone for MockPartition {
@@ -828,17 +830,12 @@ mod partition {
                 entry_availability: KeyAvailability,
             ) -> HsmResult<(KeyId, DdiKeyType)>;
 
-            fn begin_get_unwrapping_key(
+            fn get_unwrapping_key(
                 &self,
                 tag: TagId,
                 key_id: Option<KeyId>,
                 pfn: PcieFunction,
-            ) -> HsmResult<GetUnwrappingKeyCtx<MockEnv>>;
-
-            fn end_get_unwrapping_key(
-                &self,
-                ctx: &GetUnwrappingKeyCtx<MockEnv>,
-            ) -> HsmResult<GetUnwrappingKeyOut>;
+            ) -> HsmResult<GetUnwrappingKeyCtx>;
 
             fn begin_compute_rsa_crt_params(
                 &self,
@@ -1031,6 +1028,21 @@ mod partition {
                 pub_data: Option<&'a [u8]>,
                 masked_key: &mut [u8],
             ) -> HsmResult<()>;
+
+            fn mask_bulk_key(
+                &self,
+                key_label: &[u8],
+                key_id: KeyId,
+                raw_key: &[u8],
+                masked_key: &mut [u8],
+            ) -> HsmResult<()>;
+
+            fn get_masked_bulk_key_len(
+                &self,
+                key_label: &[u8],
+                key_id: KeyId,
+                raw_key_len: usize,
+            ) -> HsmResult<usize>;
 
             fn mask_key(
                 &self,

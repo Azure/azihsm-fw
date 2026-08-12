@@ -219,10 +219,7 @@ pub(crate) struct GetUnwrappingKeyOut {
 }
 
 /// Get Unwrapping key command context
-pub(crate) struct GetUnwrappingKeyCtx<E: HsmEnvTrait + 'static> {
-    /// Reference to the HSP IPC channel.
-    pub(crate) channel_ref: Option<HspIpcChannelRef<E>>,
-
+pub(crate) struct GetUnwrappingKeyCtx {
     /// Get Unwrapping key output
     pub(crate) output: Option<GetUnwrappingKeyOut>,
 }
@@ -786,12 +783,28 @@ pub(crate) trait HsmPartition {
     /// * Returns `Ok(())` if successful else `Err(HsmError)` if failed
     fn clear_unwrapping_key(&mut self) -> HsmResult<()>;
 
+    /// Arm/disarm Gate 1 (`unwrapping_key_required`) for this PFN; SP reads it as its first gate.
+    ///
+    /// # Arguments
+    /// * `required` - Boolean flag to indicate if unwrapping key is required
+    fn set_unwrapping_key_required(&self, required: bool);
+
     /// Get unwrapping key id
     ///
     /// # Returns
     ///
     /// * Returns `Some(KeyId)` if the key exists else `None`
     fn unwrapping_key_id(&self) -> Option<KeyId>;
+
+    /// Get unwrapping key validity
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` only if validity == `PctPassed`.
+    fn is_unwrapping_key_pct_verified(&self) -> bool;
+
+    /// Mark the unwrapping key as PCT unverified (validity = `PctNotVerified`).
+    fn mark_unwrapping_key_pct_verified(&mut self);
 
     /// Get the alias certificate from GSRAM
     ///
@@ -1563,19 +1576,16 @@ pub(crate) trait HsmPartition {
     #[cfg(all(feature = "mcr_test_hooks", feature = "fips_validation_hooks"))]
     fn neg_pct_skip_cnt(&self, cnt: Option<u8>) -> Option<u8>;
 
+    /// Test hook: force the RSA unwrapping-key PCT to re-run on the next `GetUnwrappingKey`.
+    ///
+    /// The unwrapping key is PCT-verified once and cached as `PctPassed` in the persistent store,
+    /// surviving soft resets.  Negative-PCT tests need a fresh PCT, so this downgrades a
+    /// `PctPassed` slot back to `PendingPct` (leaving the staged key in place).  No-op otherwise.
+    #[cfg(all(feature = "mcr_test_hooks", feature = "fips_validation_hooks"))]
+    fn reset_unwrapping_key_pct(&self);
+
     #[cfg(all(feature = "mcr_test_hooks", feature = "mcr_test_hooks_cdma_ecc_err"))]
     fn get_corr_ecc_err_intr_count(&self) -> Option<u32>;
-
-    /// Get CDMA Vault Key Entry
-    ///
-    /// # Arguments
-    ///
-    /// * `key_id` - The AesBulk256KeyId of the CDMA Vault Key
-    ///
-    /// # Returns
-    ///
-    /// * Returns `Ok(IoMemRange)` if successful else `Err(HsmError)` if failed
-    fn get_cdma_vaultkey_entry(&self, key_id: AesBulk256KeyId) -> HsmResult<IoMemRange>;
 }
 
 /// Session Triat
@@ -2437,7 +2447,7 @@ pub(crate) trait HsmUserSession: HsmSession {
         key_availabilty: KeyAvailability,
     ) -> HsmResult<(KeyId, DdiKeyType)>;
 
-    /// Begin the process to get unwrapping key
+    /// Get the unwrapping key
     ///
     /// # Arguments
     ///
@@ -2448,27 +2458,12 @@ pub(crate) trait HsmUserSession: HsmSession {
     /// # Returns
     ///
     /// * `Ok(GetUnwrappingKeyCtx)` if successful else `Err(HsmError)` if failed
-    fn begin_get_unwrapping_key(
+    fn get_unwrapping_key(
         &self,
         tag: TagId,
         key_id: Option<KeyId>,
         pfn: PcieFunction,
-    ) -> HsmResult<GetUnwrappingKeyCtx<Self::Env>>;
-
-    /// End the process to get unwrapping key, this is an optional step, if the unwrapping is
-    /// already available in HSM key vault.
-    ///
-    /// # Arguments
-    ///
-    /// * `&mut ctx` - The context for the get unwrapping key operation
-    ///
-    /// # Returns
-    ///
-    /// * Returns `Ok(GetUnwrappingKeyOut)` if successful else `Err(HsmError)` if failed
-    fn end_get_unwrapping_key(
-        &self,
-        ctx: &GetUnwrappingKeyCtx<Self::Env>,
-    ) -> HsmResult<GetUnwrappingKeyOut>;
+    ) -> HsmResult<GetUnwrappingKeyCtx>;
 
     /// Begin computing CRT parameters (n1q, n2p) for the RSA CRT private key.
     ///
@@ -2985,6 +2980,21 @@ pub(crate) trait HsmUserSession: HsmSession {
         pub_data: Option<&[u8]>,
         masked_key: &mut [u8],
     ) -> HsmResult<()>;
+
+    fn mask_bulk_key(
+        &self,
+        key_label: &[u8],
+        key_id: KeyId,
+        raw_key: &[u8],
+        masked_key: &mut [u8],
+    ) -> HsmResult<()>;
+
+    fn get_masked_bulk_key_len(
+        &self,
+        key_label: &[u8],
+        key_id: KeyId,
+        raw_key_len: usize,
+    ) -> HsmResult<usize>;
 
     /// Mask a key based on the metadata, key length and input padded buffer
     ///

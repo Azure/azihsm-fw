@@ -150,6 +150,49 @@ fn test_enable() {
     part.enable();
 }
 
+// The test hook downgrades a cached `PctPassed` unwrapping key back to `PendingPct` (so the next
+// `GetUnwrappingKey` re-runs the RSA PCT), and is a no-op for `Empty` / `PendingPct` slots.
+#[test]
+#[cfg(all(feature = "mcr_test_hooks", feature = "fips_validation_hooks"))]
+fn test_reset_unwrapping_key_pct() {
+    use mcr_types::UnwrappingKeyValidity;
+
+    let part = partition(true);
+
+    // PctPassed -> PendingPct
+    part.state
+        .part_persistent_store_ref()
+        .unwrapping_key_bk_valid = UnwrappingKeyValidity::PctPassed as u8;
+    part.reset_unwrapping_key_pct();
+    assert_eq!(
+        part.state
+            .part_persistent_store_ref()
+            .unwrapping_key_bk_valid,
+        UnwrappingKeyValidity::PendingPct as u8
+    );
+
+    // PendingPct stays PendingPct (no-op)
+    part.reset_unwrapping_key_pct();
+    assert_eq!(
+        part.state
+            .part_persistent_store_ref()
+            .unwrapping_key_bk_valid,
+        UnwrappingKeyValidity::PendingPct as u8
+    );
+
+    // Empty stays Empty (no-op)
+    part.state
+        .part_persistent_store_ref()
+        .unwrapping_key_bk_valid = UnwrappingKeyValidity::Empty as u8;
+    part.reset_unwrapping_key_pct();
+    assert_eq!(
+        part.state
+            .part_persistent_store_ref()
+            .unwrapping_key_bk_valid,
+        UnwrappingKeyValidity::Empty as u8
+    );
+}
+
 #[test]
 fn test_disable() {
     const VAULT_SIZE_DWORDS: usize = 1024 * 17 * 65 / 4;
@@ -1310,6 +1353,57 @@ fn test_new_with_resource_table() {
     );
 
     assert_eq!(part.resource_mask(), 0x3);
+
+    // WarmReset for an allocated PFN must re-arm Gate 1 (offset 22) without a replayed `SetRes`.
+    assert_eq!(part_persistent_store_memory[22], 1);
+}
+
+#[test]
+fn test_new_with_resource_table_unallocated_pfn_not_armed() {
+    let mut resource_table = vec![Resource::default(); 65].into_boxed_slice();
+    let mut hal = MockHal::new();
+    let mut rng_nonce = MockRng::new();
+    rng_nonce.expect_bytes().once().returning(|buf| {
+        let nonce_to_return: [u8; 32] = (1..33u8).collect::<Vec<_>>().try_into().unwrap();
+        buf.copy_from_slice(&nonce_to_return);
+    });
+
+    hal.expect_rng().once().return_const(rng_nonce);
+    let part_persistent_store_memory = [0u8; 2048 * 65];
+    hal.expect_part_persistent_store_addr()
+        .return_const(part_persistent_store_memory.as_ptr() as usize);
+
+    let mut pka = MockPka::new();
+
+    // Empty resource table for PcieFunction(0): restored mask is 0 (idle slot, not armed).
+    for resource in resource_table.iter_mut() {
+        *resource = Resource::default()
+    }
+
+    pka.expect_clone().once().returning(MockPka::new);
+    hal.expect_pka().once().return_const(vec![pka]);
+    hal.expect_resource_table()
+        .once()
+        .return_const(resource_table.to_vec());
+    hal.expect_clone().once().returning(move || {
+        let mut hal = MockHal::new();
+
+        let part_persistent_store_memory = [0u8; 2048 * 65];
+        hal.expect_part_persistent_store_addr()
+            .return_const(part_persistent_store_memory.as_ptr() as usize);
+
+        hal
+    });
+    set_ipc_expectations(&mut hal);
+
+    let part = Partition::<MockEnv>::new_with_resource_table(
+        PcieFunction(0),
+        PartEnv::<MockEnv>::new(hal, cmd_scheduler()),
+    );
+
+    // mask == 0 -> the PFN is not armed: an idle box stays drain-free.
+    assert_eq!(part.resource_mask(), 0);
+    assert_eq!(part_persistent_store_memory[22], 0);
 }
 
 #[test]

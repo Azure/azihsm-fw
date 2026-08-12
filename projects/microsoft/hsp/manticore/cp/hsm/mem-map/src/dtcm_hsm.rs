@@ -4,8 +4,6 @@ use mcr_mem_map_derive::mem_map;
 use mcr_self_test::NegKind;
 use mcr_self_test::SelfTest;
 use mcr_self_test::{SelfTestReqPacket, SelfTestRespPacket};
-use mcr_types::GetBulkKeyReqEntry;
-use mcr_types::GetBulkKeyRespEntry;
 
 /// DTCM memory map for CP Admin and HSM
 ///
@@ -74,32 +72,7 @@ pub struct HsmDtcmMemMap {
     #[field(cardinality = 1, mutable = true)]
     corr_ecc_err_intr_count: u32,
 
-    /// Get Bulk Key request consumer index
-    #[field(mutable = true, volatile = true, offset = 0xF884)]
-    get_bulk_key_req_ci: u32,
-
-    /// Get Bulk Key request producer index
-    #[field(mutable = true, volatile = true)]
-    get_bulk_key_req_pi: u32,
-
-    /// Get Bulk Key request queue
-    #[field(cardinality = 2, mutable = true)]
-    get_bulk_key_req_queue: GetBulkKeyReqEntry,
-
-    /// Get Bulk Key response consumer index
-    #[field(mutable = true, volatile = true)]
-    get_bulk_key_resp_ci: u32,
-
-    /// Get Bulk Key response producer index
-    #[field(mutable = true, volatile = true)]
-    get_bulk_key_resp_pi: u32,
-
-    /// Get Bulk Key response queue
-    #[field(cardinality = 2, mutable = true)]
-    get_bulk_key_resp_queue: GetBulkKeyRespEntry,
-
-    // Reserved
-    #[field(cardinality = 0x71C)]
+    #[field(offset = 0xF884, cardinality = 0x77C)]
     _rsvd: u8,
 }
 
@@ -137,12 +110,6 @@ mod tests {
                 + HsmDtcmMemMap::CORR_ECC_ERR_INTR_COUNT_SIZE
                 + HsmDtcmMemMap::NEGATIVE_KIND_SIZE
                 + 3 // Added 3 padding as NEGATIVE KIND is not aligned to 4 bytes
-                + HsmDtcmMemMap::GET_BULK_KEY_REQ_CI_SIZE
-                + HsmDtcmMemMap::GET_BULK_KEY_REQ_PI_SIZE
-                + HsmDtcmMemMap::GET_BULK_KEY_REQ_QUEUE_SIZE
-                + HsmDtcmMemMap::GET_BULK_KEY_RESP_CI_SIZE
-                + HsmDtcmMemMap::GET_BULK_KEY_RESP_PI_SIZE
-                + HsmDtcmMemMap::GET_BULK_KEY_RESP_QUEUE_SIZE
         );
     }
 
@@ -325,83 +292,9 @@ mod tests {
     }
 
     #[test]
-    fn test_get_bulk_key_req_ci() {
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_REQ_CI_SIZE, 0x4);
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_REQ_CI_OFFSET, 0x2003_F884);
-
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_REQ_CI_OFFSET % 4, 0);
-        sa::const_assert!(
-            HsmDtcmMemMap::GET_BULK_KEY_REQ_CI_OFFSET + HsmDtcmMemMap::GET_BULK_KEY_REQ_CI_SIZE
-                <= HsmDtcmMemMap::BASE_ADDRESS + HsmDtcmMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_req_pi() {
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_REQ_PI_SIZE, 0x4);
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_REQ_PI_OFFSET, 0x2003_F888);
-
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_REQ_PI_OFFSET % 4, 0);
-        sa::const_assert!(
-            HsmDtcmMemMap::GET_BULK_KEY_REQ_PI_OFFSET + HsmDtcmMemMap::GET_BULK_KEY_REQ_PI_SIZE
-                <= HsmDtcmMemMap::BASE_ADDRESS + HsmDtcmMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_req_queue() {
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_REQ_QUEUE_SIZE, 0x8);
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_REQ_QUEUE_OFFSET, 0x2003_F88C);
-
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_REQ_QUEUE_OFFSET % 4, 0);
-        sa::const_assert!(
-            HsmDtcmMemMap::GET_BULK_KEY_REQ_QUEUE_OFFSET
-                + HsmDtcmMemMap::GET_BULK_KEY_REQ_QUEUE_SIZE
-                <= HsmDtcmMemMap::BASE_ADDRESS + HsmDtcmMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_resp_ci() {
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_RESP_CI_SIZE, 0x4);
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_RESP_CI_OFFSET, 0x2003_F894);
-
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_RESP_CI_OFFSET % 4, 0);
-        sa::const_assert!(
-            HsmDtcmMemMap::GET_BULK_KEY_RESP_CI_OFFSET + HsmDtcmMemMap::GET_BULK_KEY_RESP_CI_SIZE
-                <= HsmDtcmMemMap::BASE_ADDRESS + HsmDtcmMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_resp_pi() {
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_RESP_PI_SIZE, 0x4);
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_RESP_PI_OFFSET, 0x2003_F898);
-
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_RESP_PI_OFFSET % 4, 0);
-        sa::const_assert!(
-            HsmDtcmMemMap::GET_BULK_KEY_RESP_PI_OFFSET + HsmDtcmMemMap::GET_BULK_KEY_RESP_PI_SIZE
-                <= HsmDtcmMemMap::BASE_ADDRESS + HsmDtcmMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_resp_queue() {
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_RESP_QUEUE_SIZE, 0x48);
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_RESP_QUEUE_OFFSET, 0x2003_F89C);
-
-        assert_eq!(HsmDtcmMemMap::GET_BULK_KEY_RESP_QUEUE_OFFSET % 4, 0);
-        sa::const_assert!(
-            HsmDtcmMemMap::GET_BULK_KEY_RESP_QUEUE_OFFSET
-                + HsmDtcmMemMap::GET_BULK_KEY_RESP_QUEUE_SIZE
-                <= HsmDtcmMemMap::BASE_ADDRESS + HsmDtcmMemMap::LENGTH
-        );
-    }
-
-    #[test]
     fn test_rsvd() {
-        assert_eq!(HsmDtcmMemMap::_RSVD_SIZE, 0x71C);
-        assert_eq!(HsmDtcmMemMap::_RSVD_OFFSET, 0x2003_F8E4);
+        assert_eq!(HsmDtcmMemMap::_RSVD_SIZE, 0x77C);
+        assert_eq!(HsmDtcmMemMap::_RSVD_OFFSET, 0x2003_F884);
 
         assert_eq!(HsmDtcmMemMap::_RSVD_OFFSET % 4, 0);
         sa::const_assert!(

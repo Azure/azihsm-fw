@@ -245,5 +245,6 @@ pub(crate) fn import_der_aesbulk256_key() -> HsmResult<AesBulk256Cmd<MockEnv>> {
         Default::default(),
         0,
         channel.unwrap(),
+        SecureByteArray::<32>::new([0u8; 32]),
     ))
 }

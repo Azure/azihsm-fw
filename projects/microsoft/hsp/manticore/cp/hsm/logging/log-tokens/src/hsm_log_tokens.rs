@@ -79,7 +79,7 @@ lazy_static::lazy_static! {
         m.insert("[delete_key], begin_delete_aesbulk256_key returned err: {:?}", 69);
         m.insert("[open_session] on_start: begin_open_session err: {:?}", 70); // Deprecated message
         m.insert("[open_session] on_engine_ready: begin_open_session err: {:?}", 71);
-        m.insert("[part] delete_session_keys: failed to delete key key_id={:?}, Error: {:?}", 72);
+        m.insert("[part] delete_session_keys: failed to delete key key_id={:?}, Error: {:?}", 72); // Deprecated message
         m.insert("[part] Failed to send IPC message to FP: {:?}", 73); // Deprecated message
         m.insert("[part] Failed to decode IPC message header: {:?}", 74);
         m.insert("[part] Invalid IPC response with status {}", 75);
@@ -177,7 +177,7 @@ lazy_static::lazy_static! {
         m.insert("[part_init] Failed PCT final validation", 167);
         m.insert("[part_init] Failed end PCT validation: {}", 168);
         m.insert("[part_init] Failed continue PCT validation: {}", 169);
-        m.insert("Failed to get CDMA vault key entry", 170);
+        m.insert("Failed to get CDMA vault key entry", 170); // Deprecated message
         m.insert("Failed to configure stack guard: invalid stack limit", 171);
         m.insert("send_stack_validation_request: Failed to send IPC message to Admin: {:?}", 172);
         m.insert("Invalid core id for stack validation", 173);
@@ -261,7 +261,7 @@ lazy_static::lazy_static! {
         m.insert(69, "[delete_key], begin_delete_aesbulk256_key returned err: {:?}");
         m.insert(70, "[open_session] on_start: begin_open_session err: {:?}"); // Deprecated message
         m.insert(71, "[open_session] on_engine_ready: begin_open_session err: {:?}");
-        m.insert(72, "[part] delete_session_keys: failed to delete key key_id={:?}, Error: {:?}");
+        m.insert(72, "[part] delete_session_keys: failed to delete key key_id={:?}, Error: {:?}"); // Deprecated message
         m.insert(73, "[part] Failed to send IPC message to FP: {:?}"); // Deprecated message
         m.insert(74, "[part] Failed to decode IPC message header: {:?}");
         m.insert(75, "[part] Invalid IPC response with status {}");
@@ -359,7 +359,7 @@ lazy_static::lazy_static! {
         m.insert(167, "[part_init] Failed PCT final validation");
         m.insert(168, "[part_init] Failed end PCT validation: {}");
         m.insert(169, "[part_init] Failed continue PCT validation: {}");
-        m.insert(170, "Failed to get CDMA vault key entry");
+        m.insert(170, "Failed to get CDMA vault key entry"); // Deprecated message
         m.insert(171, "Failed to configure stack guard: invalid stack limit");
         m.insert(172, "send_stack_validation_request: Failed to send IPC message to Admin: {:?}");
         m.insert(173, "Invalid core id for stack validation");

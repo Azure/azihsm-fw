@@ -9,11 +9,9 @@ use mcr_ipc_message::*;
 use mcr_logging::*;
 use mcr_mem_map::*;
 use mcr_simplex::SimplexPipeTrait;
-use mcr_types::AesBulk256KeyId;
 use mcr_types::DebugLogComponent;
 use mcr_types::DebugLogEntryParameters;
 use mcr_types::DebugLogSeverity;
-use mcr_types::GetBulkKeyRespEntry;
 use mcr_types::PcieFunction;
 
 use crate::cmd_scheduler::*;
@@ -32,7 +30,6 @@ use crate::HsmEnvTrait;
 
 use alloc::rc::Rc;
 use core::cell::RefCell;
-use zeroize::Zeroize;
 
 /// Hsm Core Event handler
 pub(crate) struct HsmEventHandler<E: HsmEnvTrait + 'static> {
@@ -100,7 +97,6 @@ impl<E: HsmEnvTrait> HsmEventHandler<E> {
             HsmFsmEvent::CheckAlive => {}
             HsmFsmEvent::SoftAesResp => self.on_soft_aes_resp(),
             HsmFsmEvent::SelfTestRequest => self.on_self_test_request(),
-            HsmFsmEvent::GetBulkKeyRequest => self.on_get_bulk_key_request(),
             HsmFsmEvent::ResourceCleanup(_, _) => {} // Delivered directly to the scheduler
             HsmFsmEvent::InitPartition(_) => {}      // Delivered directly to the scheduler
             HsmFsmEvent::Unknown => {}
@@ -456,61 +452,6 @@ impl<E: HsmEnvTrait> HsmEventHandler<E> {
         response
     }
 
-    /// Handle Get Bulk Key request from the dedicated simplex queue
-    fn on_get_bulk_key_request(&mut self) {
-        let hal = self.env.borrow().hal().clone();
-        let req = match hal.get_bulk_key_req().recv() {
-            Some(req) => req,
-            None => return,
-        };
-
-        let pfn = match PcieFunction::try_from(req.pfn) {
-            Ok(pfn) => pfn,
-            Err(_) => {
-                let resp = GetBulkKeyRespEntry {
-                    status: 1,
-                    ..Default::default()
-                };
-                let _ = hal.get_bulk_key_resp().send(resp);
-                return;
-            }
-        };
-
-        let key_id = AesBulk256KeyId::new()
-            .with_key_index(req.key_index)
-            .with_vault_id(req.resource_id);
-
-        let part = self.env.borrow().partition(pfn);
-        let key_range = match part.get_cdma_vaultkey_entry(key_id) {
-            Ok(range) => range,
-            Err(_) => {
-                error!("Failed to get CDMA vault key entry");
-                let resp = GetBulkKeyRespEntry {
-                    status: 1,
-                    ..Default::default()
-                };
-                let _ = hal.get_bulk_key_resp().send(resp);
-                return;
-            }
-        };
-
-        // Copy key data from IoMemRange to [u32; 8] array
-        let key_slice = key_range.slice();
-        let mut key_data = [0u32; 8];
-        for (i, chunk) in key_slice.chunks_exact(4).enumerate().take(8) {
-            key_data[i] = u32::from_le_bytes(chunk.try_into().unwrap_or([0u8; 4]));
-        }
-
-        let resp = GetBulkKeyRespEntry {
-            status: 0,
-            _rsvd: [0; 3],
-            key: key_data,
-        };
-        key_data.zeroize();
-
-        let _ = hal.get_bulk_key_resp().send(resp);
-    }
-
     /// Send invalid message response to Admin
     fn handle_invalid_message_opcode(&mut self, message: IpcMessage) -> McrResult<()> {
         let mut header = IpcMessageDecoder::decode_header(&message).inspect_err(|err| {
@@ -798,9 +739,6 @@ mod tests {
     use mcr_ipc_message::IpcMessageCdmaErr;
     use mcr_types::DevCqId;
     use mcr_types::DevSqId;
-    use mcr_types::GetBulkKeyReqEntry;
-    use mcr_types::GetBulkKeyRespEntry;
-    use mcr_types::IoMemRange;
 
     use super::*;
     use crate::mock::*;
@@ -963,6 +901,9 @@ mod tests {
                             IpcMessageOpCode::SetResource => {
                                 if config.resource_mask > 0 {
                                     part.expect_set_resource_mask().once().returning(|_| ());
+                                    part.expect_set_unwrapping_key_required()
+                                        .once()
+                                        .returning(|_| ());
                                     part.expect_set_vm_launch_guid().once().returning(|_| ());
                                     part.expect_begin_generate_partition_identifiers()
                                         .once()
@@ -1174,69 +1115,6 @@ mod tests {
             }
             _ => unreachable!(),
         }
-    }
-
-    /// Create a mock env to test on_get_bulk_key_request with configurable behavior.
-    fn handler_test_env_get_bulk_key(
-        recv_entry: Option<GetBulkKeyReqEntry>,
-        partition_err: Option<HsmErr>,
-        key_memory: Option<&'static [u8]>,
-    ) -> MockEnv {
-        let mut env = MockEnv::new();
-        let expect_response = recv_entry.is_some();
-        let need_partition = recv_entry
-            .map(|r| PcieFunction::try_from(r.pfn).is_ok())
-            .unwrap_or(false);
-
-        // The production code does: let hal = self.env.borrow().hal().clone();
-        // So we need hal() to return a MockHal that has expect_clone set up.
-        let mut outer_hal = MockHal::new();
-        outer_hal.expect_clone().once().returning(move || {
-            let mut hal = MockHal::new();
-
-            let mut mock_req_queue = MockSimplexPipe::<GetBulkKeyReqEntry>::new();
-            mock_req_queue
-                .expect_recv()
-                .once()
-                .returning(move || recv_entry);
-            hal.expect_get_bulk_key_req().return_const(mock_req_queue);
-
-            let mut mock_resp_queue = MockSimplexPipe::<GetBulkKeyRespEntry>::new();
-            if expect_response {
-                mock_resp_queue.expect_send().once().returning(|_| Ok(()));
-            }
-            hal.expect_get_bulk_key_resp().return_const(mock_resp_queue);
-
-            hal
-        });
-        env.expect_hal().return_const(outer_hal);
-
-        // Set up partition mock when we have a valid pfn
-        if need_partition {
-            if let Some(err) = partition_err {
-                let mut partition = MockPartition::new();
-                partition.expect_clone().once().returning(move || {
-                    let mut part = MockPartition::new();
-                    part.expect_get_cdma_vaultkey_entry()
-                        .once()
-                        .returning(move |_| Err(err));
-                    part
-                });
-                env.expect_partition().once().return_const(partition);
-            } else if let Some(slice) = key_memory {
-                let mut partition = MockPartition::new();
-                partition.expect_clone().once().returning(move || {
-                    let mut part = MockPartition::new();
-                    part.expect_get_cdma_vaultkey_entry()
-                        .once()
-                        .returning(move |_| Ok(IoMemRange::from(slice)));
-                    part
-                });
-                env.expect_partition().once().return_const(partition);
-            }
-        }
-
-        env
     }
 
     #[test]
@@ -2019,123 +1897,5 @@ mod tests {
         let mut handler = HsmEventHandler::new(env, scheduler);
 
         handler.on_event(HsmFsmEvent::FpToHsmIpcRequest);
-    }
-
-    #[test]
-    fn test_hsm_handler_get_bulk_key_request_spurious() {
-        let mut env = MockEnv::new();
-
-        let mut outer_hal = MockHal::new();
-        outer_hal.expect_clone().once().returning(|| {
-            let mut hal = MockHal::new();
-            let mut mock_req_queue = MockSimplexPipe::<GetBulkKeyReqEntry>::new();
-            mock_req_queue.expect_recv().once().returning(|| None);
-            hal.expect_get_bulk_key_req().return_const(mock_req_queue);
-            let mock_resp_queue = MockSimplexPipe::<GetBulkKeyRespEntry>::new();
-            hal.expect_get_bulk_key_resp().return_const(mock_resp_queue);
-            hal
-        });
-        env.expect_hal().return_const(outer_hal);
-
-        let scheduler = CmdScheduler::new(65, 1, HsmFsmEventRecorder::default());
-        let mut pka = Vec::new();
-        for _ in 0..16 {
-            pka.push(MockPka::new());
-        }
-        env.expect_pka_engine()
-            .times(1)
-            .return_const(CmdResource::new(
-                PkaResource::new(pka),
-                scheduler.clone(),
-                16,
-            ));
-
-        let mut handler = HsmEventHandler::new(env, scheduler);
-        handler.on_event(HsmFsmEvent::GetBulkKeyRequest);
-    }
-
-    #[test]
-    fn test_hsm_handler_get_bulk_key_request_invalid_pfn() {
-        let req = GetBulkKeyReqEntry {
-            key_index: 0,
-            resource_id: 1,
-            pfn: 120,
-            _rsvd: 0,
-        };
-
-        let env = handler_test_env_get_bulk_key(Some(req), None, None);
-        let scheduler = CmdScheduler::new(65, 1, HsmFsmEventRecorder::default());
-        let mut pka = Vec::new();
-        for _ in 0..16 {
-            pka.push(MockPka::new());
-        }
-        let mut env = env;
-        env.expect_pka_engine()
-            .times(1)
-            .return_const(CmdResource::new(
-                PkaResource::new(pka),
-                scheduler.clone(),
-                16,
-            ));
-
-        let mut handler = HsmEventHandler::new(env, scheduler);
-        handler.on_event(HsmFsmEvent::GetBulkKeyRequest);
-    }
-
-    #[test]
-    fn test_hsm_handler_get_bulk_key_request_vault_entry_fail() {
-        let req = GetBulkKeyReqEntry {
-            key_index: 0,
-            resource_id: 1,
-            pfn: 64,
-            _rsvd: 0,
-        };
-
-        let env = handler_test_env_get_bulk_key(Some(req), Some(HsmErr::Pending), None);
-        let scheduler = CmdScheduler::new(65, 1, HsmFsmEventRecorder::default());
-        let mut pka = Vec::new();
-        for _ in 0..16 {
-            pka.push(MockPka::new());
-        }
-        let mut env = env;
-        env.expect_pka_engine()
-            .times(1)
-            .return_const(CmdResource::new(
-                PkaResource::new(pka),
-                scheduler.clone(),
-                16,
-            ));
-
-        let mut handler = HsmEventHandler::new(env, scheduler);
-        handler.on_event(HsmFsmEvent::GetBulkKeyRequest);
-    }
-
-    #[test]
-    fn test_hsm_handler_get_bulk_key_request_success() {
-        let req = GetBulkKeyReqEntry {
-            key_index: 2,
-            resource_id: 5,
-            pfn: 64,
-            _rsvd: 0,
-        };
-        static KEY_DATA: [u8; 32] = [0x01; 32];
-
-        let env = handler_test_env_get_bulk_key(Some(req), None, Some(&KEY_DATA));
-        let scheduler = CmdScheduler::new(65, 1, HsmFsmEventRecorder::default());
-        let mut pka = Vec::new();
-        for _ in 0..16 {
-            pka.push(MockPka::new());
-        }
-        let mut env = env;
-        env.expect_pka_engine()
-            .times(1)
-            .return_const(CmdResource::new(
-                PkaResource::new(pka),
-                scheduler.clone(),
-                16,
-            ));
-
-        let mut handler = HsmEventHandler::new(env, scheduler);
-        handler.on_event(HsmFsmEvent::GetBulkKeyRequest);
     }
 }

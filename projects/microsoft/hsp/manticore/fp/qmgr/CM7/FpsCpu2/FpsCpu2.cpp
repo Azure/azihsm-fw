@@ -43,6 +43,30 @@ Gdma_t* rGdma = (Gdma_t*)GDMA_REG_ADDR;
 //  Member Function Definitions
 //-----------------------------------------------------------------------------
 
+// CDMA key vault region requires 32-bit-only access. memcpy may emit LDRD
+// which faults on this MMIO region. Use this helper to guarantee 32-bit
+// single-word reads. NOT inlined: keeps single body even though we only
+// have one callsite today (mirrors the FpsCpu1 vault_write_slot pattern).
+// Length in 32-bit words to eliminate the runtime divide.
+static void __attribute__((noinline)) vault_read_slot(uint32_t* dst, const uint32_t* keySlot, uint32_t numWords)
+{
+    for (uint32_t w = 0; w < numWords; w++)
+    {
+        dst[w] = readl((uint32_t)&keySlot[w]);
+    }
+}
+
+// CDMA vault seqlock pointer - translated once in CDMAInit() so the hot
+// tag-correction path stays translation-free.
+static volatile uint32_t* sCdmaVaultSeqLockPtr = NULL;
+
+// FP1-owned _rgid2keyValid[] bitmap (one byte per RGID, bit(subIdx) = valid).
+// CPU2 reads it via the AXI-master / AHB-slave bridge translation cached here.
+// Used by the GCM tag-correction path to detect a race where FP1 deletes the
+// key between FP2's seqlock-protected vault read and the API_AddGCMTagCorrect
+// hand-off to CP Admin.
+static volatile uint8_t* sRgid2KeyValidPtr = NULL;
+
 bool ChkFPMsgStsDone(CP2FPMsgSts sts)
 {
     bool done = false;
@@ -87,6 +111,13 @@ void fpsCpu2::CDMAInit()
     uint32_t list1DflAddr = getCPU1TCMPhysicalAddress((uint32_t)M7_FPS_CPU12_CDMA_LIST_1_DFL_BUFF_ADDR);
     uint64_t list2DflAddr = getpSRAMPhysicalAddress((uint32_t)PSRAM_CP_DFL_BUF_ADDR);
     uint32_t list3DflAddr = getCPU1TCMPhysicalAddress((uint32_t)M7_FPS_CPU12_DFL_1_BUFF_ADDR);
+    sCdmaVaultSeqLockPtr = (volatile uint32_t*)
+        getCPU1TCMPhysicalAddress((uint32_t)M7_FPS_CPU12_CDMA_VAULT_SEQ_LOCK);
+    sRgid2KeyValidPtr = (volatile uint8_t*)
+        getCPU1TCMPhysicalAddress((uint32_t)M7_FPS_CPU12_KEY_TABLE_RGID_TO_VALID_ADDR);
+    // CDMA vault seqlock counter (FP1 writer / FP2 reader).
+    // Even = quiescent, odd = FP1 write in progress.
+    *sCdmaVaultSeqLockPtr = 0;
 
     HalCDMA_Reset();
     #ifdef SUPPORT_FPS_REGISTER
@@ -1201,11 +1232,67 @@ void fpsCpu2::FpsCpu2ProcessCdmaCqOslFiber(void* pObj)
                     }
                 };
 
-            //Uncomment following logs for Tag correction debug
-            //Request to CP
-            // DebugLogLvDbgInfo(cLogCPU2Common, cLogInfo, ("Request sent to CP EnDecrypt:0x%X, ceindex:%X\n", pFpCmd->cqe.EnDecrypt, ceIndex), "32", "32");
-            API_AddGCMTagCorrect(ceIndex, aesGcmTagInvalid, vfId, dflBuffPhysicalAddr);
-            continue;
+                //Uncomment following logs for Tag correction debug
+                //Request to CP
+                // DebugLogLvDbgInfo(cLogCPU2Common, cLogInfo, ("Request sent to CP EnDecrypt:0x%X, ceindex:%X\n", pFpCmd->cqe.EnDecrypt, ceIndex), "32", "32");
+
+                // Carry the 32-byte AES bulk key to Admin in DFL[20..51]. A single
+                // contiguous memcpy overwrites the IV staging zone, Reserved1 dwords,
+                // and the ServiceIndicator slot. Admin reads the key directly from
+                // DFL, performs tag correction, then via its scope guard zeros
+                // DFL[20..51] before sending the GcmResponseEntry. FP restores the
+                // IV (from meta.IV) and recomputes ServiceIndicator in
+                // FpsCpu2ProcessGcmCmdFiber after receiving the response, before
+                // handing the CQE to UCD. FP is the single source of truth for
+                // host-visible CQE writes.
+                // No other agent reads DFL[20..51] during this window: CDMA writeback
+                // is already complete; CPU0/CPU1 are not in this path; the host only
+                // sees the CQE after UCD DMAs DFL[0..63] to host memory.
+                // CDMA key vault MMIO region requires 32-bit-only access.
+                // Stage the 32-byte bulk key at DFL_KEY_STAGING_OFFSET (DW5-DW12,
+                // overlaying IV + Reserved1 + ServiceIndicator).
+                AesKeyVault_t* keyVaultArr = (AesKeyVault_t*)(&(rCdma->aesKeyVaultAddr));
+
+                // Seqlock-protected vault read. Retry if FP1 was writing
+                // (odd snapshot) or wrote concurrently (snapshot changed).
+                // Destination DFL[20..51] is owned here, so retries simply
+                // overwrite the previous attempt - no scratch buffer needed.
+                uint32_t vaultSeqStart;
+                uint32_t vaultSeqEnd;
+                do {
+                    vaultSeqStart = *sCdmaVaultSeqLockPtr;
+                    vault_read_slot((uint32_t*)((uint8_t*)pFpCmd + DFL_KEY_STAGING_OFFSET),
+                                    keyVaultArr[keyIndex1].key,
+                                    AES_KEY_LEN_IN_WORDS);
+                    vaultSeqEnd = *sCdmaVaultSeqLockPtr;
+                } while ((vaultSeqStart & 1U) || vaultSeqStart != vaultSeqEnd);
+
+                // Key-validity recheck: FP1 may have run KeyUpdate(Delete)
+                // between our seqlock-protected vault read and now.
+                // _rgid2keyValid bit reflects current FP1 state. CP Admin
+                // trusts SQE[20..51] without re-checking
+                // (cp/hsm/admin/src/fsm/aes_gcm_ext.rs aes_gcm_tag_correction),
+                // so this is the sole defense against stale-key tag correction.
+                const uint8_t rgId   = pFpCmd->meta.AesXtsCmd.HostKeyIdx[0].resourceGroupID;
+                const uint8_t subIdx = pFpCmd->meta.AesXtsCmd.HostKeyIdx[0].keySubIndex;
+                if (likely(sRgid2KeyValidPtr[rgId] & BIT(subIdx)))
+                {
+                    API_AddGCMTagCorrect(ceIndex, aesGcmTagInvalid, vfId, dflBuffPhysicalAddr);
+                    continue;
+                }
+
+                // Key deleted mid-flight. Zeroize staged 32-byte key in
+                // DFL[20..51] -- this also wipes IV and ServiceIndicator
+                // (both inside [20..51]) which is fine because the host
+                // driver ignores those fields once device_status != 0
+                // (Martichoras sdk/ddi/nix/src/dev.rs:984). SqId (DW14) and
+                // DataLen (DW13) are outside the wipe range and were
+                // populated by CDMA writeback, so they remain valid.
+                // Set StsCode + ErrCode and fall through to UCD push.
+                M7_MEM_SET((uint8_t*)pFpCmd + DFL_KEY_STAGING_OFFSET, 0,
+                           AES_KEY_LEN_IN_WORDS * sizeof(uint32_t));
+                pFpCmd->cqe.StsCode = CQE_SC_INVALID_FIELD_GCM;
+                pFpCmd->cqe.ErrCode = SQE_GCM_INVALID_KEY;
             }
         }
         #endif
@@ -1308,6 +1395,38 @@ void fpsCpu2::FpsCpu2ProcessGcmCmdFiber(void* pObj){
             // DebugLogLvDbgInfo(cLogCPU2Common, cLogInfo, ("cStsDelete pThis->_pSlotFlagSts[phyQId] :0x%X, ceIndex :0x%X\n", pThis->_pSlotFlagSts[phyQId],ceIndex), "32", "32");
             pThis->FpsCpu2ReturnErrorCommandToHost(CQE_SC_DELETE_QUEUE, CQE_DEFAULT_ERROR_CODE);
         }
+
+        // Restore the host-visible CQE fields that were clobbered when FP placed
+        // the bulk key into DFL[20..51] before forwarding to Admin:
+        //   DFL[20..31] (IV)               -- was overwritten by key bytes [0..12]
+        //   DFL[32..47] (Reserved1)        -- was overwritten by key bytes [12..28]
+        //   DFL[48..51] (ServiceIndicator) -- was overwritten by key bytes [28..32]
+        // Admin already zeroed DFL[20..51] as part of its scope-guard cleanup
+        // before sending the GcmResponseEntry. FP is the single source of truth
+        // for these host-visible CQE writes -- Admin never writes here.
+        // META region (DFL[64..127]) is never modified by Admin, so meta.IV and
+        // meta.AesXtsCmd.HostKeyIdx are still valid here.
+        #ifndef LIONPERF_SUPPORT
+        {
+            LionFPCmdMetaData_t* pFpCmd = (LionFPCmdMetaData_t*)(CPU2AccessCPU1TCMMem(dflBuffPhysicalAddr));
+
+            // Restore IV in the host-visible CQE.
+            M7_MEM_COPY(pFpCmd->cqe.IV, pFpCmd->meta.AesGcmCmd.IV, sizeof(pFpCmd->meta.AesGcmCmd.IV));
+
+            // Recompute ServiceIndicator from key flags + per-VF service indicator.
+            uint8_t vfId = MAP_FUNCTION_ID((GET_VF_ID(pCe->IFSel)));
+            uint8_t* pKeyFlagBase = (uint8_t*)((uint32_t)CPU2AccessCPU0TCMMem((uint32_t)(M7_FPS_CPU01_KEY_FLAG_ADDR)));
+            uint16_t keyIndex = (pFpCmd->meta.AesXtsCmd.HostKeyIdx[0].resourceGroupID * (KEYUPDATE_KEY_SUB_IDX_MAX + 1)) + pFpCmd->meta.AesXtsCmd.HostKeyIdx[0].keySubIndex;
+            KeyFlags_t* pKeyFlag = (KeyFlags_t*)&pKeyFlagBase[keyIndex];
+            if (pKeyFlag->keyType == cAesGcmApproved) {
+                pFpCmd->cqe.ServiceIndicator = (pThis->_pServiceIndicator[vfId] & pKeyFlag->keyType);
+            } else if (pKeyFlag->keyType == cAesGcmUnapproved) {
+                pFpCmd->cqe.ServiceIndicator = 0;
+            } else {
+                pFpCmd->cqe.ServiceIndicator = pThis->_pServiceIndicator[vfId];
+            }
+        }
+        #endif
         pOslEntry->addrLow = dflBuffPhysicalAddr;
         pOslEntry->addrHi = 0;
         pOslEntry->Dw3 = (((uint32_t)pThis->_pIbQ2ObQ[phyQId]) << UCD_OSL_ENTRY_DW3_QPID_SH) | \

@@ -3811,9 +3811,7 @@ pub(crate) fn make_fsm_for_aes_gcm_ext_invalid_unaligned_data_length(
     cfg: AesGcmExtTestConfigs,
 ) -> AdminFsmContext<MockAdminEnvTrait> {
     let mut test = AdminFsmTest::default();
-
-    // Setup simplex queue mocks for bulk key request/response
-    setup_bulk_key_queue_expectations(&mut test, &cfg);
+    default_resource_expectations(&mut test);
 
     let req_pipe = test.aes_gcm_req_queue();
     req_pipe.expect_recv().once().returning(move || {
@@ -3836,8 +3834,7 @@ pub(crate) fn make_fsm_for_aes_gcm_ext_unaligned_data_len_zero(
     cfg: AesGcmExtTestConfigs,
 ) -> AdminFsmContext<MockAdminEnvTrait> {
     let mut test = AdminFsmTest::default();
-
-    setup_bulk_key_queue_expectations(&mut test, &cfg);
+    default_resource_expectations(&mut test);
 
     let req_pipe = test.aes_gcm_req_queue();
     req_pipe.expect_recv().once().returning(move || {
@@ -3882,8 +3879,7 @@ pub(crate) fn make_fsm_for_aes_gcm_ext_unaligned_data_len_nonzero(
     cfg: AesGcmExtTestConfigs,
 ) -> AdminFsmContext<MockAdminEnvTrait> {
     let mut test = AdminFsmTest::default();
-
-    setup_bulk_key_queue_expectations(&mut test, &cfg);
+    default_resource_expectations(&mut test);
 
     let req_pipe = test.aes_gcm_req_queue();
     req_pipe.expect_recv().once().returning(move || {
@@ -3935,46 +3931,6 @@ pub(crate) fn make_fsm_for_aes_gcm_ext_unaligned_data_len_nonzero(
     }
 
     get_context(test)
-}
-
-/// Helper function to setup simplex queue expectations for AES GCM EXT FSM bulk key request/response
-fn setup_bulk_key_queue_expectations(test: &mut AdminFsmTest, cfg: &AesGcmExtTestConfigs) {
-    use mcr_types::GetBulkKeyRespEntry;
-
-    let cfg = *cfg;
-
-    // Setup IPC channels with default clone expectations (no longer used for key reads)
-    default_resource_expectations(test);
-
-    // Setup bulk key request queue
-    let req_queue = test.get_bulk_key_req_queue();
-    if cfg.ipc_send_request_fail {
-        req_queue.expect_send().once().returning(|_| Err(0x1234u32));
-    } else {
-        req_queue.expect_send().once().returning(|_| Ok(()));
-    }
-
-    // Setup bulk key response queue (only if send succeeded)
-    if !cfg.ipc_send_request_fail {
-        let resp_queue = test.get_bulk_key_resp_queue();
-        resp_queue.expect_recv().once().returning(move || {
-            if cfg.ipc_response_spurious {
-                None
-            } else if cfg.ipc_response_error {
-                Some(GetBulkKeyRespEntry {
-                    status: 1,
-                    _rsvd: [0; 3],
-                    key: [0u32; 8],
-                })
-            } else {
-                Some(GetBulkKeyRespEntry {
-                    status: 0,
-                    _rsvd: [0; 3],
-                    key: [0x12345678u32; 8],
-                })
-            }
-        });
-    }
 }
 
 /// Helper function for AES GCM EXT FSM DMA channel expectation configuration

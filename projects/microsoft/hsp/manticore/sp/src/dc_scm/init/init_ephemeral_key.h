@@ -4,15 +4,12 @@
 #define INIT_EPHEMERAL_KEY_H_
 
 #include "keystore/ephemeral_key_manager_static.h"
+#include "keystore/key_cache_flash.h"
 
-
-/*
- * Maximum size of a DER-encoded RSA 2048-bit key stored in a flash sector.
- */
-#define RSA_2K_DER_KEY_MAX_SIZE			1300
 
 
 extern const struct ephemeral_key_manager rsa_ephemeral_key_manager;
+extern const struct key_cache_flash rsa_key_cache_flash;
 
 
 int initialize_ephemeral_key_handler ();

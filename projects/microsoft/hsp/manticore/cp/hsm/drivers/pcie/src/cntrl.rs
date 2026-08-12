@@ -294,7 +294,7 @@ impl PcieControllerImpl {
                 return Ok(());
             }
 
-            if self.perst_down_detected && !self.phy_ready {
+            if self.perst_down_detected || !self.phy_ready {
                 cpu_stall(2);
                 if !self.top_regs.int_sts().read().perst_n_raw_sts() {
                     cpu_stall(1);
@@ -303,23 +303,23 @@ impl PcieControllerImpl {
                     }
                 }
                 self.perst_down_detected = false;
+
+                // Execute PCIe Button Reset Sequence
+                //
+                //  Assert Button Reset
+                //  Stall for 10us
+                //  Deassert Button Reset
+                //  Stall for 1us
+                self.top_regs
+                    .pcie_reset_control()
+                    .read_and_modify(|_, w| w.pcie_x4_button_rst(true));
+                cpu_stall(10);
+                self.top_regs
+                    .pcie_reset_control()
+                    .read_and_modify(|_, w| w.pcie_x4_button_rst(false));
+                cpu_stall(1);
             }
         }
-
-        // Execute PCIe Button Reset Sequence
-        //
-        //  Assert Button Reset
-        //  Stall for 10us
-        //  Deassert Button Reset
-        //  Stall for 1us
-        self.top_regs
-            .pcie_reset_control()
-            .read_and_modify(|_, w| w.pcie_x4_button_rst(true));
-        cpu_stall(10);
-        self.top_regs
-            .pcie_reset_control()
-            .read_and_modify(|_, w| w.pcie_x4_button_rst(false));
-        cpu_stall(1);
 
         // Initialize the MAC
         self.pcie_mac.mac_init()?;
@@ -353,6 +353,21 @@ impl PcieControllerImpl {
 
             self.perst_down_detected = true;
         }
+
+        // Execute PCIe Button Reset Sequence
+        //
+        //  Assert Button Reset
+        //  Stall for 10us
+        //  Deassert Button Reset
+        //  Stall for 1us
+        self.top_regs
+            .pcie_reset_control()
+            .read_and_modify(|_, w| w.pcie_x4_button_rst(true));
+        cpu_stall(10);
+        self.top_regs
+            .pcie_reset_control()
+            .read_and_modify(|_, w| w.pcie_x4_button_rst(false));
+        cpu_stall(1);
     }
 
     /// Query PCIe link status, for speed and width

@@ -43,6 +43,15 @@ enum {
 	CERBERUS_PROTOCOL_ID_PLATFORM,		/**< Request a manifest platform ID */
 };
 
+/**
+ * Identifier for the type of manifest.
+ */
+enum {
+	CERBERUS_PROTOCOL_MANIFEST_PFM = 0,	/**< Policy Firmware Manifest */
+	CERBERUS_PROTOCOL_MANIFEST_CFM = 1,	/**< Component Firmware Manifest */
+	CERBERUS_PROTOCOL_MANIFEST_PCD = 2,	/**< Platform Configuration Data */
+};
+
 #pragma pack(push, 1)
 /**
  * Cerberus protocol get component firmware manifest ID request format
@@ -393,8 +402,8 @@ struct cerberus_protocol_get_configuration_ids_response {
  * Cerberus protocol force attestation request format
  */
 struct cerberus_protocol_force_attestation {
-	struct cerberus_protocol_header header;				/**< Message header */
-	struct device_manager_force_attestation_data data;	/**< Force attestation mode and optional targeting */
+	struct cerberus_protocol_header header;			/**< Message header */
+	struct device_manager_force_action_data data;	/**< Force attestation mode and optional targeting */
 };
 
 /**
@@ -402,6 +411,54 @@ struct cerberus_protocol_force_attestation {
  */
 struct cerberus_protocol_force_attestation_response {
 	struct cerberus_protocol_header header;	/**< Message header */
+};
+
+/**
+ * Cerberus protocol force attestation info response format
+ */
+struct cerberus_protocol_force_attestation_info_response {
+	struct cerberus_protocol_header header;	/**< Message header */
+	uint8_t status;							/**< Force attestation status: 0x00=idle, 0x01=pending, 0x02=in progress */
+	uint32_t action_id;						/**< Current action ID from device manager */
+};
+
+/**
+ * Cerberus protocol get manifest size request format
+ */
+struct cerberus_protocol_get_manifest_size {
+	struct cerberus_protocol_header header;	/**< Message header */
+	uint8_t manifest_type;					/**< Manifest type: 0=PFM, 1=CFM, 2=PCD */
+	uint8_t region;							/**< Region: 0=active, 1=pending */
+	uint8_t port;							/**< Port identifier, if applicable */
+};
+
+/**
+ * Cerberus protocol get manifest size response format
+ */
+struct cerberus_protocol_get_manifest_size_response {
+	struct cerberus_protocol_header header;	/**< Message header */
+	uint32_t manifest_id;					/**< Manifest identifier (version ID from manifest header) */
+	uint16_t manifest_size;					/**< Total manifest size including DER-encoded signature */
+};
+
+/**
+ * Cerberus protocol manifest extract request format
+ */
+struct cerberus_protocol_export_manifest {
+	struct cerberus_protocol_header header;	/**< Message header */
+	uint8_t manifest_type;					/**< Manifest type: 0=PFM, 1=CFM, 2=PCD */
+	uint8_t region;							/**< Region: 0=active, 1=pending */
+	uint8_t port;							/**< Port identifier, if applicable */
+	uint16_t offset;						/**< Offset within manifest */
+};
+
+/**
+ * Cerberus protocol manifest extract response format
+ */
+struct cerberus_protocol_export_manifest_response {
+	struct cerberus_protocol_header header;	/**< Message header */
+	uint32_t manifest_id;					/**< Manifest identifier (version ID from manifest header) */
+	uint8_t data[];							/**< Extracted manifest data */
 };
 
 #pragma pack(pop)
@@ -490,6 +547,15 @@ int cerberus_protocol_process_device_capabilities_response (struct device_manage
 	struct cmd_interface_msg *response);
 
 int cerberus_protocol_force_attestation (struct attestation_requester *attestation,
+	struct cmd_interface_msg *request);
+int cerberus_protocol_get_manifest_size (const struct cfm_manager *cfm_mgr,
+	const struct pcd_manager *pcd_mgr, const struct pfm_manager *const pfm_mgr[],
+	uint8_t num_pfm_managers, struct cmd_interface_msg *request);
+int cerberus_protocol_export_manifest (const struct cfm_manager *cfm_mgr,
+	const struct pcd_manager *pcd_mgr, const struct pfm_manager *const pfm_mgr[],
+	uint8_t num_pfm_managers, struct cmd_interface_msg *request);
+
+int cerberus_protocol_force_attestation_info (struct attestation_requester *attestation,
 	struct cmd_interface_msg *request);
 
 /* Private functions for internal use */

@@ -84,6 +84,11 @@ int manifest_flash_read_element_data (const struct manifest_flash *manifest,
 	uint32_t read_offset, int *found_entry_index, uint8_t *format, size_t *total_len,
 	uint8_t **element, size_t length);
 
+int manifest_flash_read_element_data_multi_type (const struct manifest_flash *manifest,
+	const struct hash_engine *hash, const uint8_t *types, size_t types_count, int start_entry_index,
+	uint8_t parent_type, uint32_t read_offset, int *found_entry_index, uint8_t *found_type,
+	uint8_t *format, size_t *total_len, uint8_t **element, size_t length);
+
 int manifest_flash_get_child_elements_info (const struct manifest_flash *manifest,
 	const struct hash_engine *hash, int start_entry_index, uint8_t type, uint8_t parent_type,
 	uint8_t child_type, size_t *child_len, int *child_count, int *first_entry_index);
@@ -96,6 +101,7 @@ int manifest_flash_compare_id (const struct manifest_flash *manifest1,
 	const struct manifest_flash *manifest2);
 int manifest_flash_compare_platform_id (const struct manifest_flash *manifest1,
 	const struct manifest_flash *manifest2, bool sku_upgrade_permitted);
+int manifest_flash_get_size (const struct manifest_flash *manifest);
 
 
 #endif	//MANIFEST_FLASH_H

@@ -43,6 +43,10 @@ static void cmd_channel_i2c_dw_apb_multimaster_tx_finished (
 	struct cmd_channel_i2c_dw_apb_multimaster_state *state =
 		(struct cmd_channel_i2c_dw_apb_multimaster_state*) i2c_chan->base.base.state;
 
+	/* Re-enable SLAVE mode before signalling completion to close the race window where an
+	 * incoming transaction could arrive before slave mode is restored by the task. */
+	i2c_dw_apb_enable_slave_mode_isr (i2c_chan->base.i2c_hw);
+
 	if (cmd_channel_i2c_dw_apb_master_tx_set_result (&state->base, result) == 0) {
 		cmd_channel_i2c_dw_apb_signal_txn_complete (&state->base);
 	}

@@ -13,10 +13,7 @@ enum State {
     /// Initial state
     Init,
 
-    /// Waiting for HSP IPC Channel
-    WaitForResource,
-
-    /// Wait for completion of HSP IPC operation
+    /// Waiting for PKA command completion (PCT in progress).
     WaitForCmd,
 
     /// Wait for begin PCT validation
@@ -45,9 +42,6 @@ pub(crate) struct GetUnwrappingKeyCmd<E: HsmEnvTrait + 'static> {
 
     /// Response DMA buffer
     resp: Option<DmaBuffer<E>>,
-
-    /// Get Unwrapping Key command context
-    cmd_ctx: Option<GetUnwrappingKeyCtx<E>>,
 
     /// PCIe Function this get unwrapping key belongs to
     pfn: PcieFunction,
@@ -78,8 +72,6 @@ impl<E: HsmEnvTrait> HsmCmdTrait<E> for GetUnwrappingKeyCmd<E> {
     fn on_event(&mut self, event: HsmFsmEvent, tag: TagId) -> Result<(), HsmErr> {
         match (self.state, event) {
             (State::Init, HsmFsmEvent::StartCmd) => self.on_start(tag),
-            (State::WaitForResource, HsmFsmEvent::ResourceReady(_)) => self.on_resource_ready(tag),
-            (State::WaitForCmd, HsmFsmEvent::HspToHsmIpcResponse) => self.on_ipc_response(tag),
             (_, HsmFsmEvent::CheckAlive) => self.check_alive(),
             (State::WaitForEngineToBeginPct, HsmFsmEvent::ResourceReady(_)) => {
                 self.handle_pct_validation_on_engine_ready(tag)
@@ -102,14 +94,8 @@ impl<E: HsmEnvTrait> HsmCmdTrait<E> for GetUnwrappingKeyCmd<E> {
     }
 
     /// Acquire a resource
-    fn acquire_resource(&mut self, _tag: TagId, res_id: ResId) -> HsmFsmEvent {
-        match res_id {
-            HsmFsmResourceId::HspIpcChannel => {
-                HsmFsmEvent::ResourceReady(HsmFsmResourceId::HspIpcChannel)
-            }
-            HsmFsmResourceId::Pka => HsmFsmEvent::ResourceReady(HsmFsmResourceId::Pka),
-            _ => unreachable!(),
-        }
+    fn acquire_resource(&mut self, _tag: TagId, _res_id: ResId) -> HsmFsmEvent {
+        HsmFsmEvent::ResourceReady(HsmFsmResourceId::Pka)
     }
 
     /// Perform any rollback in case of error
@@ -139,7 +125,6 @@ impl<E: HsmEnvTrait> GetUnwrappingKeyCmd<E> {
             part,
             req,
             resp: None,
-            cmd_ctx: None,
             pfn,
             key_id: None,
             output: None,
@@ -154,60 +139,31 @@ impl<E: HsmEnvTrait> GetUnwrappingKeyCmd<E> {
         // Force decode the header and body to ensure body is empty
         let _ = decode_buf::<DdiGetUnwrappingKeyCmdReq, E>(&self.req)?;
 
-        self.begin_get_unwrapping_key(tag)
+        self.get_unwrapping_key(tag)
     }
 
-    /// Handle the IPC resource ready
-    fn on_resource_ready(&mut self, tag: TagId) -> Result<(), HsmErr> {
-        self.begin_get_unwrapping_key(tag)
-    }
-
-    /// On IPC response from HSP
-    fn on_ipc_response(&mut self, tag: TagId) -> Result<(), HsmErr> {
-        self.state = State::Final;
-
-        let ctx = self.cmd_ctx.as_ref().ok_or(HsmErr::InvalidState)?;
-
-        let output = self.session.end_get_unwrapping_key(ctx)?;
-
-        self.output = Some(output);
-
-        self.handle_begin_pct_validation(tag)
-    }
-
-    /// Helper to begin the process of get unwrapping key
-    fn begin_get_unwrapping_key(&mut self, tag: u16) -> Result<(), HsmErr> {
+    /// Dispatch to vault-hit / BK-import / PendingKeyGeneration paths.
+    fn get_unwrapping_key(&mut self, tag: u16) -> Result<(), HsmErr> {
         self.key_id = self.part.unwrapping_key_id();
 
-        match self
-            .session
-            .begin_get_unwrapping_key(tag, self.key_id, self.pfn)
-        {
+        match self.session.get_unwrapping_key(tag, self.key_id, self.pfn) {
             Ok(ctx) => {
-                if let Some(output) = ctx.output {
+                let output = ctx.output.ok_or(HsmErr::InvalidState)?;
+
+                // Gate the PCT on the validity flag, not on `key_id`.  A key imported via
+                // `unmask_unwrapping_key_and_import` lands in the vault (`key_id.is_some()`) in the
+                // `PendingPct` state, so it must still run the deferred PCT before it is returned to
+                // the host.  Only a `PctPassed` key may skip the PCT.
+                if self.part.is_unwrapping_key_pct_verified() {
                     self.state = State::Final;
-                    self.cmd_ctx = Some(GetUnwrappingKeyCtx {
-                        channel_ref: ctx.channel_ref,
-                        output: None,
-                    });
                     self.prepare_response(output)
                 } else {
-                    self.state = State::WaitForCmd;
-                    self.cmd_ctx = Some(ctx);
-
-                    Err(HsmErr::Pending)
+                    self.output = Some(output);
+                    self.handle_begin_pct_validation(tag)
                 }
             }
-            Err(mut err) => {
-                if err.pending() && self.state == State::Init {
-                    self.state = State::WaitForResource
-                } else if err.pending() && self.state == State::WaitForResource {
-                    self.state = State::Final;
-                    err = HsmErr::InvalidState
-                } else {
-                    self.state = State::Final
-                }
-
+            Err(err) => {
+                self.state = State::Final;
                 Err(err)
             }
         }
@@ -294,6 +250,9 @@ impl<E: HsmEnvTrait> GetUnwrappingKeyCmd<E> {
                         self.session.notify_pct_validation_failure(
                             HsmErr::PctValidationUnwrappingKeyFailed as u32,
                         );
+                    } else {
+                        // Promote flag to `PctPassed` so a post-vault-clear re-import can skip PCT.
+                        self.part.mark_unwrapping_key_pct_verified();
                     }
                 }
                 Err(err) => {
@@ -306,6 +265,7 @@ impl<E: HsmEnvTrait> GetUnwrappingKeyCmd<E> {
 
             self.in_middle_of_pct_validation = false;
 
+            self.state = State::Final;
             self.prepare_response(output)
         } else {
             match self.session.continue_rsa_pct_validation(pct_op) {
@@ -335,19 +295,20 @@ impl<E: HsmEnvTrait> GetUnwrappingKeyCmd<E> {
 
     /// On timer event response
     fn check_alive(&mut self) -> Result<(), HsmErr> {
-        if (self.state == State::WaitForResource || self.state == State::WaitForCmd)
-            && self.check_alive_cnt < MAX_RESOURCE_WAIT_TIME
-        {
+        if self.state != State::WaitForCmd && self.state != State::WaitForEngineToBeginPct {
+            return Err(HsmErr::Pending);
+        }
+
+        if self.check_alive_cnt < MAX_RESOURCE_WAIT_TIME {
             self.check_alive_cnt += 1;
 
             Err(HsmErr::Pending)
         } else {
-            self.check_alive_cnt = 0;
-
             error!(
                 "GetUnwrappingKey command timed out. {:?}",
                 self.state as u32
             );
+            self.check_alive_cnt = 0;
             self.state = State::Final;
 
             Err(HsmErr::IoTimeOut)

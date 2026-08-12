@@ -52,30 +52,6 @@ pub struct SocMemMap {
     #[field(cardinality = 0x1, mutable = true)]
     negative_kind: NegKind,
 
-    /// Get Bulk Key request consumer index
-    #[field(mutable = true, volatile = true, offset = 0x0063_F884)]
-    get_bulk_key_req_ci: u32,
-
-    /// Get Bulk Key request producer index
-    #[field(mutable = true, volatile = true)]
-    get_bulk_key_req_pi: u32,
-
-    /// Get Bulk Key request queue
-    #[field(cardinality = 2, mutable = true)]
-    get_bulk_key_req_queue: GetBulkKeyReqEntry,
-
-    /// Get Bulk Key response consumer index
-    #[field(mutable = true, volatile = true)]
-    get_bulk_key_resp_ci: u32,
-
-    /// Get Bulk Key response producer index
-    #[field(mutable = true, volatile = true)]
-    get_bulk_key_resp_pi: u32,
-
-    /// Get Bulk Key response queue
-    #[field(cardinality = 2, mutable = true)]
-    get_bulk_key_resp_queue: GetBulkKeyRespEntry,
-
     /// AES GCM IV queue buffer size
     #[field(alignment = 0x4, mutable = true, volatile = true, offset = 0x43221A1C)]
     aes_gcm_iv_queue_buffer_size: u32,
@@ -295,78 +271,6 @@ mod tests {
         assert_eq!(SocMemMap::NEGATIVE_KIND_OFFSET % 4, 0);
         sa::const_assert!(
             SocMemMap::NEGATIVE_KIND_OFFSET + SocMemMap::NEGATIVE_KIND_SIZE
-                < SocMemMap::BASE_ADDRESS + SocMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_req_ci() {
-        assert_eq!(SocMemMap::GET_BULK_KEY_REQ_CI_SIZE, 0x4);
-        assert_eq!(SocMemMap::GET_BULK_KEY_REQ_CI_OFFSET, 0x6063_F884);
-
-        assert_eq!(SocMemMap::GET_BULK_KEY_REQ_CI_OFFSET % 4, 0);
-        sa::const_assert!(
-            SocMemMap::GET_BULK_KEY_REQ_CI_OFFSET + SocMemMap::GET_BULK_KEY_REQ_CI_SIZE
-                < SocMemMap::BASE_ADDRESS + SocMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_req_pi() {
-        assert_eq!(SocMemMap::GET_BULK_KEY_REQ_PI_SIZE, 0x4);
-        assert_eq!(SocMemMap::GET_BULK_KEY_REQ_PI_OFFSET, 0x6063_F888);
-
-        assert_eq!(SocMemMap::GET_BULK_KEY_REQ_PI_OFFSET % 4, 0);
-        sa::const_assert!(
-            SocMemMap::GET_BULK_KEY_REQ_PI_OFFSET + SocMemMap::GET_BULK_KEY_REQ_PI_SIZE
-                < SocMemMap::BASE_ADDRESS + SocMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_req_queue() {
-        assert_eq!(SocMemMap::GET_BULK_KEY_REQ_QUEUE_SIZE, 0x8);
-        assert_eq!(SocMemMap::GET_BULK_KEY_REQ_QUEUE_OFFSET, 0x6063_F88C);
-
-        assert_eq!(SocMemMap::GET_BULK_KEY_REQ_QUEUE_OFFSET % 4, 0);
-        sa::const_assert!(
-            SocMemMap::GET_BULK_KEY_REQ_QUEUE_OFFSET + SocMemMap::GET_BULK_KEY_REQ_QUEUE_SIZE
-                < SocMemMap::BASE_ADDRESS + SocMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_resp_ci() {
-        assert_eq!(SocMemMap::GET_BULK_KEY_RESP_CI_SIZE, 0x4);
-        assert_eq!(SocMemMap::GET_BULK_KEY_RESP_CI_OFFSET, 0x6063_F894);
-
-        assert_eq!(SocMemMap::GET_BULK_KEY_RESP_CI_OFFSET % 4, 0);
-        sa::const_assert!(
-            SocMemMap::GET_BULK_KEY_RESP_CI_OFFSET + SocMemMap::GET_BULK_KEY_RESP_CI_SIZE
-                < SocMemMap::BASE_ADDRESS + SocMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_resp_pi() {
-        assert_eq!(SocMemMap::GET_BULK_KEY_RESP_PI_SIZE, 0x4);
-        assert_eq!(SocMemMap::GET_BULK_KEY_RESP_PI_OFFSET, 0x6063_F898);
-
-        assert_eq!(SocMemMap::GET_BULK_KEY_RESP_PI_OFFSET % 4, 0);
-        sa::const_assert!(
-            SocMemMap::GET_BULK_KEY_RESP_PI_OFFSET + SocMemMap::GET_BULK_KEY_RESP_PI_SIZE
-                < SocMemMap::BASE_ADDRESS + SocMemMap::LENGTH
-        );
-    }
-
-    #[test]
-    fn test_get_bulk_key_resp_queue() {
-        assert_eq!(SocMemMap::GET_BULK_KEY_RESP_QUEUE_SIZE, 0x48);
-        assert_eq!(SocMemMap::GET_BULK_KEY_RESP_QUEUE_OFFSET, 0x6063_F89C);
-
-        assert_eq!(SocMemMap::GET_BULK_KEY_RESP_QUEUE_OFFSET % 4, 0);
-        sa::const_assert!(
-            SocMemMap::GET_BULK_KEY_RESP_QUEUE_OFFSET + SocMemMap::GET_BULK_KEY_RESP_QUEUE_SIZE
                 < SocMemMap::BASE_ADDRESS + SocMemMap::LENGTH
         );
     }

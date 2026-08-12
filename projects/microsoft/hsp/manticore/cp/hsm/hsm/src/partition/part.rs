@@ -102,27 +102,20 @@ impl<E: HsmEnvTrait> Partition<E> {
                 return self.key_in_use(key_id);
             }
 
-            // AES Bulk 256 keys - read the key blob
+            // Bulk key: CDMA vault zeroized by FP via DeleteEphemeral IPC.
+            // Free bitmap slot + HSM vault entry.
             let key_blob = match vault_key.blob() {
                 Ok(blob) => blob,
                 Err(_) => return true,
             };
 
-            // Use the key blob as the key id
             let cdma_key_id =
                 AesBulk256KeyId::from(u16::from_le_bytes(key_blob[..2].try_into().unwrap()));
 
-            // Delete the key from CDMA vault
-            if let Err(err) = self.state.cdma_vault().delete_key(cdma_key_id) {
-                error!(
-                    "[part] delete_session_keys: failed to delete key key_id={:?}, Error: {:?}",
-                    key_id as u32,
-                    u32::from(err)
-                );
+            if self.state.cdma_vault().delete_key(cdma_key_id).is_err() {
                 return true;
             }
 
-            // Delete the key from HSM vault - false indicate key is not in use
             false
         })?;
 
@@ -553,6 +546,11 @@ impl<E: HsmEnvTrait> HsmPartition for Partition<E> {
         self.state.rgs_mut().set_mask(mask)
     }
 
+    /// Arm/disarm the ephemeral unwrapping-key staging gate for this PFN.
+    fn set_unwrapping_key_required(&self, required: bool) {
+        self.state.set_unwrapping_key_required(required)
+    }
+
     /// Get the resource mask
     fn resource_mask(&self) -> u128 {
         self.state.rgs().mask()
@@ -652,13 +650,14 @@ impl<E: HsmEnvTrait> HsmPartition for Partition<E> {
             )?;
         }
 
-        self.state
-            .part_persistent_store_ref()
-            .unwrapping_key_bk_valid = false;
+        // Zeroize the payload before clearing the valid flag so HSP never sees a (invalid, non-zero) slot.
         self.state
             .part_persistent_store_ref()
             .unwrapping_key_bk
             .zeroize();
+        self.state
+            .part_persistent_store_ref()
+            .unwrapping_key_bk_valid = UnwrappingKeyValidity::Empty as u8;
 
         self.state.set_unwrapping_key_id(None);
 
@@ -668,6 +667,19 @@ impl<E: HsmEnvTrait> HsmPartition for Partition<E> {
     /// Get the unwrapping key id
     fn unwrapping_key_id(&self) -> Option<KeyId> {
         self.state.unwrapping_key_id()
+    }
+
+    fn is_unwrapping_key_pct_verified(&self) -> bool {
+        self.state
+            .part_persistent_store_ref()
+            .unwrapping_key_bk_valid
+            == UnwrappingKeyValidity::PctPassed as u8
+    }
+
+    fn mark_unwrapping_key_pct_verified(&mut self) {
+        self.state
+            .part_persistent_store_ref()
+            .unwrapping_key_bk_valid = UnwrappingKeyValidity::PctPassed as u8;
     }
 
     /// Get the alias cert length
@@ -729,6 +741,7 @@ impl<E: HsmEnvTrait> HsmPartition for Partition<E> {
                 session_id: id,
                 app_id: vault_id,
                 flag: AesKeyFlag::new().with_session_only(true),
+                ..Default::default()
             },
             ..Default::default()
         };
@@ -1611,7 +1624,14 @@ impl<E: HsmEnvTrait> HsmPartition for Partition<E> {
             mk_session_buf,
         )?;
 
-        if self.state.session_table().get_available_session_count() == 0 {
+        // Slot availability only applies to a *new* OpenSession. A ReopenSession
+        // targets a session_id whose slot is already allocated (alloc=1, reneg=1):
+        // `recreate_session` simply clears the renegotiation bit on the existing
+        // slot, so it does not need a free slot. Gating this check is required to
+        // support lazy renegotiation after Live Migration when other sessions may
+        // have filled the table in the meantime.
+        if reopen_sess_id.is_none() && self.state.session_table().get_available_session_count() == 0
+        {
             Err(HsmErr::SessionLimitReached)?
         }
 
@@ -1621,7 +1641,7 @@ impl<E: HsmEnvTrait> HsmPartition for Partition<E> {
         let session_id = if let Some(sess_id) = reopen_sess_id {
             self.state
                 .session_table()
-                .recreate_session(sess_id, session_key.id());
+                .recreate_session(sess_id, session_key.id())?;
 
             sess_id
         } else {
@@ -2700,10 +2720,10 @@ impl<E: HsmEnvTrait> HsmPartition for Partition<E> {
             .unwrapping_key_bk
             .copy_from_slice(decrypted_key.as_ref());
 
-        // Set unwrapping key flag in the persistent store
+        // Mark `PendingPct`: the freshly decrypted key must still run PCT on the next `GetUnwrappingKey`.
         self.state
             .part_persistent_store_ref()
-            .unwrapping_key_bk_valid = true;
+            .unwrapping_key_bk_valid = UnwrappingKeyValidity::PendingPct as u8;
 
         // Import the incoming unwrapping key
         let key_id = self.import_unwrapping_key(decrypted_key.as_ref())?;
@@ -2811,14 +2831,25 @@ impl<E: HsmEnvTrait> HsmPartition for Partition<E> {
         self.state.neg_pct_skip_cnt(cnt)
     }
 
+    /// Test hook: downgrade a `PctPassed` unwrapping key back to `PendingPct` so the next
+    /// `GetUnwrappingKey` re-runs the RSA PCT.  No-op for `Empty` / `PendingPct` slots.
+    #[cfg(all(feature = "mcr_test_hooks", feature = "fips_validation_hooks"))]
+    fn reset_unwrapping_key_pct(&self) {
+        if self
+            .state
+            .part_persistent_store_ref()
+            .unwrapping_key_bk_valid
+            == UnwrappingKeyValidity::PctPassed as u8
+        {
+            self.state
+                .part_persistent_store_ref()
+                .unwrapping_key_bk_valid = UnwrappingKeyValidity::PendingPct as u8;
+        }
+    }
+
     #[cfg(all(feature = "mcr_test_hooks", feature = "mcr_test_hooks_cdma_ecc_err"))]
     fn get_corr_ecc_err_intr_count(&self) -> Option<u32> {
         self.state.env().get_corr_ecc_err_intr_count()
-    }
-
-    /// Get CDMA Vault Key Entry
-    fn get_cdma_vaultkey_entry(&self, key_id: AesBulk256KeyId) -> HsmResult<IoMemRange> {
-        self.state.cdma_vault().get_key_entry(key_id)
     }
 }
 

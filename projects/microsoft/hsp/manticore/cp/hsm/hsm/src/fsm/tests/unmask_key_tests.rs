@@ -297,11 +297,11 @@ fn test_unmask_bulk_key() {
         .once()
         .returning(|_| Ok(()));
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
 
@@ -373,11 +373,11 @@ fn test_unmask_bulk_key_on_engine_ready() {
         .once()
         .returning(|_| Ok(()));
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
 
@@ -542,11 +542,11 @@ fn test_unmask_bulk_key_rollback_on_err() {
         .once()
         .returning(|_| Ok(()));
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
     app_session
@@ -628,11 +628,11 @@ fn test_unmask_bulk_key_rollback_during_invalid_state() {
         .once()
         .returning(|_| Ok(()));
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
     app_session

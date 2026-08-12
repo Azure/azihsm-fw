@@ -4,6 +4,9 @@ use crate::lm_key_derive::BK3_SIZE_BYTES;
 
 use super::*;
 
+/// Max time tick count to wait for IPC resource
+const MAX_RESOURCE_WAIT_TIME: u8 = 16;
+
 type EstablishCredentialCmdCtx<E> = EstablishCredentialCtx<HsmPartitionEnv<E>>;
 
 /// FSM states
@@ -53,6 +56,9 @@ pub(crate) struct EstablishCredentialCmd<E: HsmEnvTrait + 'static> {
 
     /// Decoded request
     decoded_req: Option<DdiEstablishCredentialCmdReq>,
+
+    /// Check Alive Counter
+    check_alive_cnt: u8,
 }
 
 impl<E: HsmEnvTrait> HsmCmdTrait<E> for EstablishCredentialCmd<E> {
@@ -69,6 +75,7 @@ impl<E: HsmEnvTrait> HsmCmdTrait<E> for EstablishCredentialCmd<E> {
             }
             (State::WaitForCmd, HsmFsmEvent::PkaDone(_))
             | (State::WaitForCmd, HsmFsmEvent::PkaError(_)) => self.on_cmd_complete(),
+            (_, HsmFsmEvent::CheckAlive) => self.check_alive(),
             (State::Final, _) => Err(HsmErr::InvalidState),
             (_, _) => Err(HsmErr::InvalidEvent),
         }
@@ -115,6 +122,22 @@ impl<E: HsmEnvTrait> EstablishCredentialCmd<E> {
             cmd_ctx: None,
             committed: false,
             decoded_req: None,
+            check_alive_cnt: 0,
+        }
+    }
+
+    fn check_alive(&mut self) -> Result<(), HsmErr> {
+        if self.state != State::WaitForEngine && self.state != State::WaitForCmd {
+            return Err(HsmErr::Pending);
+        }
+        if self.check_alive_cnt < MAX_RESOURCE_WAIT_TIME {
+            self.check_alive_cnt += 1;
+            Err(HsmErr::Pending)
+        } else {
+            self.check_alive_cnt = 0;
+            self.state = State::Final;
+
+            Err(HsmErr::IoTimeOut)
         }
     }
 

@@ -6,8 +6,6 @@ use mcr_self_test::SelfTestRespPacket;
 use mcr_types::AesBulk256KeyId;
 use mcr_types::AesGcmReqEntry;
 use mcr_types::AesGcmRespEntry;
-use mcr_types::GetBulkKeyReqEntry;
-use mcr_types::GetBulkKeyRespEntry;
 use mcr_types::QueueDeleteResponse;
 
 use crate::mock::*;
@@ -38,8 +36,6 @@ pub(crate) struct AdminFsmTest {
     self_test_key_table: Option<[Option<AesBulk256KeyId>; MAX_KEYS_PER_TABLE]>,
     aes_gcm_req_queue: Option<MockSimplexPipe<AesGcmReqEntry>>,
     aes_gcm_resp_queue: Option<MockSimplexPipe<AesGcmRespEntry>>,
-    get_bulk_key_req_queue: Option<MockSimplexPipe<GetBulkKeyReqEntry>>,
-    get_bulk_key_resp_queue: Option<MockSimplexPipe<GetBulkKeyRespEntry>>,
 }
 
 impl AdminFsmTest {
@@ -235,20 +231,6 @@ impl AdminFsmTest {
         self.aes_gcm_resp_queue.as_mut().unwrap()
     }
 
-    pub fn get_bulk_key_req_queue(&mut self) -> &mut MockSimplexPipe<GetBulkKeyReqEntry> {
-        if self.get_bulk_key_req_queue.is_none() {
-            self.get_bulk_key_req_queue = Some(MockSimplexPipe::new())
-        }
-        self.get_bulk_key_req_queue.as_mut().unwrap()
-    }
-
-    pub fn get_bulk_key_resp_queue(&mut self) -> &mut MockSimplexPipe<GetBulkKeyRespEntry> {
-        if self.get_bulk_key_resp_queue.is_none() {
-            self.get_bulk_key_resp_queue = Some(MockSimplexPipe::new())
-        }
-        self.get_bulk_key_resp_queue.as_mut().unwrap()
-    }
-
     pub fn env(&mut self) -> MockAdminEnvTrait {
         let mut env = MockAdminEnvTrait::new();
 
@@ -358,16 +340,6 @@ impl AdminFsmTest {
         if let Some(aes_gcm_resp_queue) = self.aes_gcm_resp_queue.take() {
             env.expect_aes_gcm_resp_queue()
                 .return_const(aes_gcm_resp_queue);
-        }
-
-        if let Some(get_bulk_key_req_queue) = self.get_bulk_key_req_queue.take() {
-            env.expect_get_bulk_key_req_queue()
-                .return_const(get_bulk_key_req_queue);
-        }
-
-        if let Some(get_bulk_key_resp_queue) = self.get_bulk_key_resp_queue.take() {
-            env.expect_get_bulk_key_resp_queue()
-                .return_const(get_bulk_key_resp_queue);
         }
 
         env

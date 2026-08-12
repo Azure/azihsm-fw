@@ -122,6 +122,8 @@ enum {
 	INIT_LOGGING_MPU_PROTECTION,				/**< Error while applying MPU configuration. */
 	INIT_LOGGING_SOC_TELEMETRY,					/**< Error initializing telemetry flush handlers. */
 	INIT_LOGGING_INIT_CRASHDUMP_HANDLER,		/**< Error initializing crashdump handler. */
+	INIT_LOGGING_INIT_EPHEMERAL_KEY_MONITOR,	/**< Error initializing the ephemeral key monitor. */
+	INIT_LOGGING_START_EPHEMERAL_KEY_MONITOR,	/**< Error starting the ephemeral key monitor task. */
 };
 
 /**

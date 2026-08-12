@@ -149,11 +149,11 @@ impl SessionTable {
     ///
     /// * `id` - Virtual session id in the SessionTable
     /// * `target_id` - Physical session id in the vault
-    pub fn recreate_session(&self, id: u16, target_id: u16) {
+    pub fn recreate_session(&self, id: u16, target_id: u16) -> HsmResult<()> {
         self.rimpl
             .borrow_mut()
             .get_table_mut()
-            .recreate_session(id, target_id);
+            .recreate_session(id, target_id)
     }
 }
 
@@ -229,10 +229,17 @@ impl HsmPartSessionTable {
         Ok(())
     }
 
-    fn recreate_session(&mut self, id: u16, target_id: u16) {
-        if (id as usize) < MAX_SESSIONS && self.needs_renegotiation(id) {
-            self.session_renegotiation_mask.set_bit(id.into(), false);
-            self.table[id as usize] = target_id;
+    fn recreate_session(&mut self, id: u16, target_id: u16) -> HsmResult<()> {
+        match self.valid(id) {
+            // Session exists and is already active (not in renegotiation state).
+            Ok(()) => Err(HsmErr::InvalidState),
+            Err(HsmErr::SessionNeedsRenegotiation) => {
+                self.session_renegotiation_mask.set_bit(id.into(), false);
+                self.table[id as usize] = target_id;
+
+                Ok(())
+            }
+            Err(e) => Err(e),
         }
     }
 
@@ -453,10 +460,14 @@ mod tests {
             Err(HsmErr::SessionNotFound)
         );
 
-        session_table.recreate_session(1, 101);
-        session_table.recreate_session((MAX_SESSIONS - 1) as u16, 227);
-        session_table.recreate_session(0, 100);
-        session_table.recreate_session((MAX_SESSIONS - 2) as u16, 226);
+        assert!(session_table.recreate_session(1, 101).is_ok());
+        assert!(session_table
+            .recreate_session((MAX_SESSIONS - 1) as u16, 227)
+            .is_ok());
+        assert!(session_table.recreate_session(0, 100).is_err());
+        assert!(session_table
+            .recreate_session((MAX_SESSIONS - 2) as u16, 226)
+            .is_err());
 
         assert!(session_table.valid(1).is_ok());
         assert!(session_table.valid((MAX_SESSIONS - 1) as u16).is_ok());
@@ -481,6 +492,29 @@ mod tests {
         assert_eq!(
             session_table.get_target_session((MAX_SESSIONS - 2) as u16),
             Err(HsmErr::SessionNotFound)
+        );
+    }
+
+    #[test]
+    fn test_invalid_recreate_session() {
+        let store_memory = [0u8; SESSION_TABLE_LEN];
+        let session_table = SessionTable::new(store_memory.as_ptr() as usize);
+
+        assert_eq!(
+            session_table.recreate_session(0, 100),
+            Err(HsmErr::SessionNotFound)
+        );
+        assert_eq!(
+            session_table.recreate_session((MAX_SESSIONS + 1) as u16, 100),
+            Err(HsmErr::SessionLimitReached)
+        );
+
+        let session_id = session_table.create_session(0);
+        assert_eq!(session_id, Ok(0));
+
+        assert_eq!(
+            session_table.recreate_session(0, 100),
+            Err(HsmErr::InvalidState)
         );
     }
 }

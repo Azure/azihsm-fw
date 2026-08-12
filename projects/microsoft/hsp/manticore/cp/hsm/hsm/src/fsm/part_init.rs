@@ -125,6 +125,11 @@ impl<E: HsmEnvTrait + 'static> HsmPartInitFsm<E> {
         let mask = u128::from_le_bytes(message.info.mask);
         self.part.set_resource_mask(mask);
 
+        // Arm Gate 1 so the SP may stage a key; gate on mask != 0 to never arm an idle PFN.
+        if mask != 0 {
+            self.part.set_unwrapping_key_required(true);
+        }
+
         let guid = message.info.vm_launch_guid;
         self.part.set_vm_launch_guid(&guid);
 

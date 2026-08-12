@@ -17,7 +17,7 @@ enum ipc_message_opcode {
 	IPC_MESSAGE_OPCODE_HEALTH_MONITOR = 0x41,		/**< Opcode of IPC health monitor request */
 	IPC_MESSAGE_OPCODE_SHUTDOWN_REQUEST = 0x42,		/**< Opcode of IPC Shutdown request */
 	IPC_MESSAGE_OPCODE_STOP_INTERFACE = 0x43,		/**< Opcode of IPC Stop Interface request */
-	IPC_MESSAGE_OPCODE_RSA_KEY_GEN = 0x44,			/**< Opcode of RSA Key Generation request */
+	IPC_MESSAGE_OPCODE_RSA_KEY_GEN = 0x44,			/**< Opcode of RSA Key Generation request, Deprecated */
 	IPC_MESSAGE_OPCODE_GET_CERT_CHAIN_LEN = 0x45,	/**< Opcode of Get certificate chain length request */
 	IPC_MESSAGE_OPCODE_GET_CERT = 0x46,				/**< Opcode of Get certificate request */
 	IPC_MESSAGE_OPCODE_TDISP_INTERRUPT = 0x49,		/**< Opcode of TDISP Interrupt request */
@@ -69,20 +69,6 @@ enum ipc_message_opcode {
  */
 #define	IPC_MESSAGE_FUNCTION_ID_PF						(64)
 
-/**
- * Define RSA 2K modulus component length
- */
-#define IPC_MESSAGE_RSA_2K_MODULUS_LEN					(256)
-
-/**
- * Define RSA 2K Private exponent length
- */
-#define IPC_MESSAGE_RSA_2K_PRIV_EXPONENT_LEN			(256)
-
-/**
- * Define RSA 2K public exponent length
- */
-#define IPC_MESSAGE_RSA_2K_PUB_EXPONENT_LEN				(4)
 
 /**
  * Max number of certificate length entries that IPC payload can hold.
@@ -263,38 +249,6 @@ _Static_assert ((sizeof (struct ipc_message_stop_interface) <= sizeof (struct ip
 
 
 /**
- * Key type identifiers for the RSA Key Gen message.
- */
-enum {
-	IPC_MESSAGE_RSA_KEY_GEN_2K = 0,	/**< RSA 2048 key */
-	IPC_MESSAGE_RSA_KEY_GEN_3K = 1,	/**< RSA 3072 key */
-	IPC_MESSAGE_RSA_KEY_GEN_4K = 2,	/**< RSA 4096 key */
-};
-
-/**
- * Define payload structure for the RSA Key Gen message.
- */
-struct ipc_message_rsa_key_gen_payload {
-	uint32_t key_address;	/* Address of GSRAM to copy the key data */
-	uint8_t key_type;		/* Key type eg RSA_2K (2048 bits key), RSA_3K (3072 bits key), RSA_4K (4096 bits key) */
-	uint8_t function_id;	/* ID for requesting entity */
-};
-
-/**
- * Define the IPC message structure for an RSA Key Gen message.
- *
- * HSP <--> HSM
- */
-struct ipc_message_rsa_key_gen {
-	struct ipc_message_header header;				/**< Common header for IPC messages. */
-	struct ipc_message_rsa_key_gen_payload payload;	/**< Payload for the RSA Ken Gen message. */
-};
-
-
-_Static_assert ((sizeof (struct ipc_message_rsa_key_gen) <= sizeof (struct ipc_message)),
-	"Size of ipc_message_rsa_key_gen is greater than size of ipc_message.");
-
-/**
  * Define payload structure for a Get Certificate Chain Length message.
  */
 struct ipc_message_get_cert_chain_len_payload {
@@ -394,14 +348,6 @@ _Static_assert ((sizeof (struct ipc_message_tdisp_interrupt) <= sizeof (struct i
 	"Size of ipc_message_tdisp_interrupt is greater than size of ipc_message.");
 
 
-/**
- * Define RSA key components data structure
- */
-struct ipc_message_rsa_key_component {
-	uint8_t d[IPC_MESSAGE_RSA_2K_PRIV_EXPONENT_LEN];	/**< RSA private exponent */
-	uint8_t n[IPC_MESSAGE_RSA_2K_MODULUS_LEN];			/**< RSA modulus component */
-	uint8_t e[IPC_MESSAGE_RSA_2K_PUB_EXPONENT_LEN];		/**< RSA public exponent */
-};
 
 #pragma pack(pop)
 

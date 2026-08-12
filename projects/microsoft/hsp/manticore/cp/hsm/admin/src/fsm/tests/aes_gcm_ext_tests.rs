@@ -33,9 +33,6 @@ pub(crate) struct AesGcmExtTestConfigs {
     pub tag_correction_fail: bool,
     pub tag_mismatch_error: bool,
     pub tag: u16,
-    pub ipc_send_request_fail: bool,
-    pub ipc_response_error: bool,
-    pub ipc_response_spurious: bool,
 }
 
 impl Default for AesGcmExtTestConfigs {
@@ -58,9 +55,6 @@ impl Default for AesGcmExtTestConfigs {
             tag_correction_fail: false,
             tag_mismatch_error: false,
             tag: 0xAB,
-            ipc_send_request_fail: false,
-            ipc_response_error: false,
-            ipc_response_spurious: false,
         }
     }
 }
@@ -170,12 +164,6 @@ fn test_aes_gcm_ext_invalid_unaligned_data_length() {
         fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
         Err(AdminErr::Pending)
     );
-
-    // Second event processes IPC response and validates unaligned data length
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
-        Err(AdminErr::Pending)
-    );
 }
 
 #[test]
@@ -194,11 +182,6 @@ fn test_aes_gcm_ext_tag_correction_failed() {
     // Execute test by passing events to the FSM
     assert_eq!(
         fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
         Err(AdminErr::Pending)
     );
 }
@@ -230,11 +213,6 @@ fn test_aes_gcm_ext_decrypt_op_tag_mismatch_error() {
         fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
         Err(AdminErr::Pending)
     );
-
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
-        Err(AdminErr::Pending)
-    );
 }
 
 #[test]
@@ -252,11 +230,6 @@ fn test_aes_gcm_ext_unaligned_data_length_zero_success() {
     // Execute test by passing events to the FSM
     assert_eq!(
         fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
         Err(AdminErr::Pending)
     );
 }
@@ -278,11 +251,6 @@ fn test_aes_gcm_ext_unaligned_src_data_ptr_null() {
     // Execute test by passing events to the FSM
     assert_eq!(
         fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
         Err(AdminErr::Pending)
     );
 
@@ -316,11 +284,6 @@ fn test_aes_gcm_ext_unaligned_dst_data_ptr_null() {
     // Execute test by passing events to the FSM
     assert_eq!(
         fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
         Err(AdminErr::Pending)
     );
 
@@ -360,11 +323,6 @@ fn test_aes_gcm_ext_dma_buf_and_unaligned_dst_data_len_mismatch() {
     );
 
     assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
         fsm.on_event(AdminFsmEvent::DmaComplete, cfg.tag),
         Err(AdminErr::Pending)
     );
@@ -393,11 +351,6 @@ fn test_aes_gcm_ext_dma_in_begin_txn_failed() {
         fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
         Err(AdminErr::Pending)
     );
-
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
-        Err(AdminErr::Pending)
-    );
 }
 
 #[test]
@@ -422,11 +375,6 @@ fn test_aes_gcm_ext_dma_in_end_txn_empty() {
     // Execute test by passing events to the FSM
     assert_eq!(
         fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
         Err(AdminErr::Pending)
     );
 
@@ -462,11 +410,6 @@ fn test_aes_gcm_ext_dma_in_end_txn_failed() {
     );
 
     assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
         fsm.on_event(AdminFsmEvent::DmaComplete, cfg.tag),
         Err(AdminErr::Pending)
     );
@@ -494,11 +437,6 @@ fn test_aes_gcm_ext_dma_in_tag_correction_failed() {
     // Execute test by passing events to the FSM
     assert_eq!(
         fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
         Err(AdminErr::Pending)
     );
 
@@ -539,11 +477,6 @@ fn test_aes_gcm_ext_dma_out_begin_txn_failed() {
     );
 
     assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
         fsm.on_event(AdminFsmEvent::DmaComplete, cfg.tag),
         Err(AdminErr::Pending)
     );
@@ -576,11 +509,6 @@ fn test_aes_gcm_ext_dma_out_end_txn_empty() {
     // Execute test by passing events to the FSM
     assert_eq!(
         fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
         Err(AdminErr::Pending)
     );
 
@@ -626,11 +554,6 @@ fn test_aes_gcm_ext_dma_out_end_txn_failed() {
     );
 
     assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
         fsm.on_event(AdminFsmEvent::DmaComplete, cfg.tag),
         Err(AdminErr::Pending)
     );
@@ -671,89 +594,12 @@ fn test_aes_gcm_ext_unaligned_data_length_nonzero_success() {
     );
 
     assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    assert_eq!(
         fsm.on_event(AdminFsmEvent::DmaComplete, cfg.tag),
         Err(AdminErr::Pending)
     );
 
     assert_eq!(
         fsm.on_event(AdminFsmEvent::DmaComplete, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-}
-
-#[test]
-fn test_aes_gcm_ext_ipc_send_request_fail() {
-    let mut sqe = CdmaIoGcmSqe::default();
-    sqe.cmd.unaligned_src_data_length = 0;
-    let cfg = AesGcmExtTestConfigs {
-        sqe_addr: (&mut sqe as *mut CdmaIoGcmSqe) as usize,
-        ipc_send_request_fail: true,
-        ..Default::default()
-    };
-
-    let ctx = make_fsm_for_aes_gcm_ext_invalid_unaligned_data_length(cfg);
-    let mut fsm: AesGcmExtFsm<MockAdminEnvTrait> = AesGcmExtFsm::new(ctx);
-
-    // Execute test - IPC send request fails
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-}
-
-#[test]
-fn test_aes_gcm_ext_ipc_response_error() {
-    let mut sqe = CdmaIoGcmSqe::default();
-    sqe.cmd.unaligned_src_data_length = 0;
-    let cfg = AesGcmExtTestConfigs {
-        sqe_addr: (&mut sqe as *mut CdmaIoGcmSqe) as usize,
-        ipc_response_error: true,
-        ..Default::default()
-    };
-
-    let ctx = make_fsm_for_aes_gcm_ext_invalid_unaligned_data_length(cfg);
-    let mut fsm: AesGcmExtFsm<MockAdminEnvTrait> = AesGcmExtFsm::new(ctx);
-
-    // Execute test - IPC request succeeds
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    // IPC response has error status
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-}
-
-#[test]
-fn test_aes_gcm_ext_ipc_spurious_message() {
-    let mut sqe = CdmaIoGcmSqe::default();
-    sqe.cmd.unaligned_src_data_length = 0;
-    let cfg = AesGcmExtTestConfigs {
-        sqe_addr: (&mut sqe as *mut CdmaIoGcmSqe) as usize,
-        ipc_response_spurious: true,
-        ..Default::default()
-    };
-
-    let ctx = make_fsm_for_aes_gcm_ext_invalid_unaligned_data_length(cfg);
-    let mut fsm: AesGcmExtFsm<MockAdminEnvTrait> = AesGcmExtFsm::new(ctx);
-
-    // Execute test - IPC request succeeds
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::AesGcmExtRequest, cfg.tag),
-        Err(AdminErr::Pending)
-    );
-
-    // IPC response is spurious (no message received)
-    assert_eq!(
-        fsm.on_event(AdminFsmEvent::GetBulkKeyResponse, cfg.tag),
         Err(AdminErr::Pending)
     );
 }

@@ -4,6 +4,7 @@
 #include "cmd_channel_i2c_dw_apb_static.h"
 #include "common/type_cast.h"
 #include "common/unused.h"
+#include "drivers/i2c_dw_apb_error.h"
 #include "freertos/freertos_utils.h"
 
 
@@ -544,7 +545,6 @@ int cmd_channel_i2c_dw_apb_try_master_send_packet (const struct cmd_channel_i2c_
 	int status;
 	int result;
 	uint32_t timeout_remain;
-	bool success = false;
 
 	if ((i2c_chan == NULL) || (timeout == NULL)) {
 		return CMD_CHANNEL_INVALID_ARGUMENT;
@@ -558,43 +558,13 @@ int cmd_channel_i2c_dw_apb_try_master_send_packet (const struct cmd_channel_i2c_
 	state = (struct cmd_channel_i2c_dw_apb_state*) i2c_chan->base.state;
 	i2c_hw = i2c_chan->i2c_hw;
 
-	/* Wait for the I2C bus to be idle before switching to master mode.
-	 * Suspend the scheduler to ensure the bus idle check and HW shutdown are atomic to prevent
-	 * any race conditions.
-	 * Use a minimum sleep of 1 ms to yield to the scheduler while waiting. */
-	do {
-		if (!i2c_dw_apb_is_active (i2c_hw)) {
-			platform_os_suspend_scheduler ();
-
-			if (!i2c_dw_apb_is_active (i2c_hw)) {
-				status = i2c_dw_apb_shutdown_hw (i2c_hw);
-				if (status != 0) {
-					platform_os_resume_scheduler ();
-
-					return status;
-				}
-				success = true;
-			}
-
-			platform_os_resume_scheduler ();
-		}
-
-		platform_msleep (1);
-	} while (!success && !platform_has_timeout_expired (timeout));
-
-	/* Ensure the bus became idle and there is still time remaining before starting the master
-	 * transmit. The bus-idle loop may have consumed all available time. */
-	if (!success || platform_has_timeout_expired (timeout)) {
-		return CMD_CHANNEL_TX_TIMEOUT;
-	}
-
 	state->txn_result = -1;
 	cmd_channel_i2c_dw_apb_reset_txn_complete (state);
 
 	status = i2c_dw_apb_begin_master_transmit (i2c_hw, packet->dest_addr, packet->data,
 		packet->pkt_size);
 	if (status != 0) {
-		return status;
+		return (status == I2C_DW_APB_BUS_BUSY) ? CMD_CHANNEL_TX_BUS_BUSY : status;
 	}
 
 	result = platform_get_timeout_remaining (timeout, &timeout_remain);
@@ -615,11 +585,6 @@ int cmd_channel_i2c_dw_apb_try_master_send_packet (const struct cmd_channel_i2c_
 		else {
 			result = CMD_CHANNEL_TX_TIMEOUT;
 		}
-	}
-
-	status = i2c_dw_apb_shutdown_hw (i2c_hw);
-	if (result == 0) {
-		result = status;
 	}
 
 	return result;

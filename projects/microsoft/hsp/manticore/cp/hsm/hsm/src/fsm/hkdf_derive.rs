@@ -242,6 +242,7 @@ impl<E: HsmEnvTrait> HkdfDeriveCmd<E> {
                 key_id,
                 None,
                 data.key_properties.key_label.as_slice(),
+                None,
             )?;
 
             Ok(())
@@ -319,7 +320,9 @@ impl<E: HsmEnvTrait> HkdfDeriveCmd<E> {
             self.session
                 .end_kdf_aesbulk256_derive(aes_bulk256_cmd_data)?;
 
-            let AesBulk256Cmd::DerKeyImport(bulk_key_id, key_id, _) = *aes_bulk256_cmd_data else {
+            let AesBulk256Cmd::DerKeyImport(bulk_key_id, key_id, _, ref raw_key) =
+                *aes_bulk256_cmd_data
+            else {
                 return Err(HsmErr::AesBulk256InvalidParameter);
             };
 
@@ -342,6 +345,7 @@ impl<E: HsmEnvTrait> HkdfDeriveCmd<E> {
                 key_id,
                 Some(AesBulk256KeyId::into(bulk_key_id)),
                 data.key_properties.key_label.as_slice(),
+                Some(raw_key.as_slice()),
             )?;
         } else {
             unreachable!();
@@ -400,21 +404,35 @@ impl<E: HsmEnvTrait> HkdfDeriveCmd<E> {
         key_id: u16,
         bulk_key_id: Option<u16>,
         key_label: &[u8],
+        raw_key: Option<&[u8]>,
     ) -> Result<Option<DmaBuffer<E>>, HsmErr> {
-        let masked_key_len = self
-            .session
-            .get_masked_key_len_from_vault(key_label, key_id, None)?;
+        let masked_key_len = if let Some(key) = raw_key {
+            self.session
+                .get_masked_bulk_key_len(key_label, key_id, key.len())?
+        } else {
+            self.session
+                .get_masked_key_len_from_vault(key_label, key_id, None)?
+        };
 
         let mut resp = self.cmd_resp(rev, session_id, key_id, bulk_key_id, masked_key_len);
 
         let buf = Some(encode_buf(&resp, &self.heap)?);
 
-        self.session.mask_key_from_vault(
-            key_label,
-            key_id,
-            None,
-            resp.data.masked_key.as_mut_slice(),
-        )?;
+        if let Some(key) = raw_key {
+            self.session.mask_bulk_key(
+                key_label,
+                key_id,
+                key,
+                resp.data.masked_key.as_mut_slice(),
+            )?;
+        } else {
+            self.session.mask_key_from_vault(
+                key_label,
+                key_id,
+                None,
+                resp.data.masked_key.as_mut_slice(),
+            )?;
+        }
 
         Ok(buf)
     }

@@ -257,6 +257,20 @@ pub struct Bk3SessionKey {
     pub key: [u8; BK3_SIZE],
 }
 
+/// Validity state of the RSA unwrapping key (`u8` so it can hold a third value without `bool` UB).
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum UnwrappingKeyValidity {
+    /// Slot empty; `GetUnwrappingKey` returns `PendingKeyGeneration`.
+    Empty = 0,
+
+    /// SP published a fresh key; CP has not yet run PCT.
+    PendingPct = 1,
+
+    /// CP ran PCT and it passed; a post-vault-clear re-import may skip PCT.
+    PctPassed = 2,
+}
+
 /// HSM Partition Persistent Data Store
 #[repr(C)]
 pub struct HsmPartPersistentStore {
@@ -269,11 +283,11 @@ pub struct HsmPartPersistentStore {
     /// Session Table
     pub session_table: [u8; SESSION_TABLE_LEN],
 
-    /// Reserved to allow 4 byte alignment for RSA Unwrapping Key
-    pub reserved1: u8,
+    /// Gate-1 staging flag (offset 22, was `reserved1`); CP writes, SP reads. 0 = not armed, 1 = armed.
+    pub unwrapping_key_required: bool,
 
-    /// Flag to indicate if the unwrapping RSA2K private key buffer contains valid key
-    pub unwrapping_key_bk_valid: bool,
+    /// Unwrapping-key slot state; decode via `UnwrappingKeyValidity` (SP treats non-zero as occupied).
+    pub unwrapping_key_bk_valid: u8,
 
     /// Unwrapping RSA2K private key
     pub unwrapping_key_bk: [u8; 516],
@@ -323,6 +337,19 @@ static_assertions::const_assert_eq!(size_of::<HsmPartPersistentStore>(), 3072);
 static_assertions::const_assert_eq!(
     0,
     core::mem::offset_of!(HsmPartPersistentStore, bk3_session_key.key) % 4
+);
+// Pin the SP<->CP gate-byte offsets (see ephemeral_key_monitor.h PART_PERSISTENT_STORE_*_OFFSET).
+static_assertions::const_assert_eq!(
+    core::mem::offset_of!(HsmPartPersistentStore, unwrapping_key_required),
+    22
+);
+static_assertions::const_assert_eq!(
+    core::mem::offset_of!(HsmPartPersistentStore, unwrapping_key_bk_valid),
+    23
+);
+static_assertions::const_assert_eq!(
+    core::mem::offset_of!(HsmPartPersistentStore, unwrapping_key_bk),
+    24
 );
 /// HSM POR measurement data
 #[repr(C)]

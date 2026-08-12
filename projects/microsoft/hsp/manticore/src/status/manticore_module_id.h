@@ -35,6 +35,7 @@ enum {
 	MANTICORE_MODULE_TELEMETRY_PCIE = 0x2014,					/**< Telemetry PCIe handler interface */
 	MANTICORE_MODULE_SELF_TEST = 0x2015,						/**< Periodic self-test execution context. */
 	MANTICORE_MODULE_CMD_INTERFACE_TDISP_EVENT_POLICY = 0x2016,	/**< Handler for the TDISP event policy. */
+	MANTICORE_MODULE_EPHEMERAL_KEY_MONITOR = 0x2017,			/**< Ephemeral key monitor task interface. */
 };
 
 

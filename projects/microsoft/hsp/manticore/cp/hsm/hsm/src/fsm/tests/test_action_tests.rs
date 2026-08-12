@@ -1112,6 +1112,10 @@ fn test_neg_pct_skip_cnt() {
     part.expect_neg_pct_skip_cnt()
         .times(1)
         .returning(move |cnt| cnt);
+    // The handler also invalidates the cached unwrapping-key PCT so a fresh PCT re-runs.
+    part.expect_reset_unwrapping_key_pct()
+        .times(1)
+        .return_const(());
 
     let mut cmd = TestActionCmd::<MockEnv>::new(req, heap, user_session, part, PcieFunction::Pf);
     assert_eq!(
@@ -1317,6 +1321,7 @@ fn cmd_req(
             updated_svn: None,
             gdma_error_type: None,
             stack_validation_info: None,
+            ucd_error_type: None,
         },
     }
 }

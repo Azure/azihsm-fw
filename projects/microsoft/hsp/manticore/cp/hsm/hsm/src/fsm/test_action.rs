@@ -16,7 +16,8 @@ cfg_if! {
         use mcr_dtcm_controller::DtcmController;
         use mcr_itcm_controller::ItcmController;
         use mcr_gdma_controller::GdmaController;
-    use mcr_self_test::SelfTest;
+        use mcr_io_controller::IoController;
+        use mcr_self_test::SelfTest;
     }
 }
 
@@ -296,8 +297,16 @@ impl<E: HsmEnvTrait> TestActionCmd<E> {
             }
             DdiTestAction::TriggerNegativePctFailure => {
                 #[cfg(all(feature = "mcr_test_hooks", feature = "fips_validation_hooks"))]
-                self.part
-                    .neg_pct_skip_cnt(decoded_req.data.neg_pct_skip_cnt);
+                {
+                    self.part
+                        .neg_pct_skip_cnt(decoded_req.data.neg_pct_skip_cnt);
+
+                    // The RSA unwrapping key is PCT-verified once and cached (`PctPassed`) in the
+                    // persistent store, surviving soft resets — so `GetUnwrappingKey` would
+                    // otherwise skip the PCT and the injected fault could never fire.  Downgrade it
+                    // to `PendingPct` so the next `GetUnwrappingKey` re-runs the RSA PCT.
+                    self.part.reset_unwrapping_key_pct();
+                }
 
                 #[cfg(not(all(feature = "mcr_test_hooks", feature = "fips_validation_hooks")))]
                 Err(HsmErr::UnsupportedCmd)?
@@ -362,7 +371,24 @@ impl<E: HsmEnvTrait> TestActionCmd<E> {
                 #[cfg(not(feature = "mcr_test_hooks"))]
                 Err(HsmErr::UnsupportedCmd)?
             }
+            DdiTestAction::TriggerUcdError => {
+                #[cfg(feature = "mcr_test_hooks")]
+                if let Some(error_type) = decoded_req.data.ucd_error_type {
+                    match error_type {
+                        DdiTestActionUCDErrorType::UcdIbDflOverflowError
+                        | DdiTestActionUCDErrorType::UcdIbQueueOverflowError
+                        | DdiTestActionUCDErrorType::UcdObQueueFullError
+                        | DdiTestActionUCDErrorType::UcdIbDataParityError
+                        | DdiTestActionUCDErrorType::UcdIbCqFullError => {
+                            IoController::inject_ucd_io_error(error_type);
+                        }
+                        _ => Err(HsmErr::InvalidArgument)?,
+                    }
+                }
 
+                #[cfg(not(feature = "mcr_test_hooks"))]
+                Err(HsmErr::UnsupportedCmd)?
+            }
             DdiTestAction::ClearUserCredentials => {
                 #[cfg(feature = "mcr_test_hooks")]
                 self.part.clear_credentials()?;

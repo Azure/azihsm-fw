@@ -434,6 +434,7 @@ add_executable(
 	${MANTICORE_DIR}/ipc/ipc_channel.c
 	${MANTICORE_DIR}/ipc/ipc_message.c
 	${MANTICORE_DIR}/ipc/ipc_message_handler.c
+	${MANTICORE_DIR}/keystore/ephemeral_key_monitor.c
 	${MANTICORE_DIR}/logging/logging_collector.c
 	${MANTICORE_DIR}/mpu/fence_manticore.c
 	${MANTICORE_DIR}/mpu/memory_protection_manticore_sprt.c
@@ -463,6 +464,7 @@ add_executable(
 	${DC_SCM_DIR}/init/init_crashdump.c
 	${DC_SCM_DIR}/init/init_crypto.c
 	${DC_SCM_DIR}/init/init_ephemeral_key.c
+	${DC_SCM_DIR}/init/init_ephemeral_key_monitor.c
 	${DC_SCM_DIR}/init/init_error.c
 	${DC_SCM_DIR}/init/init_firmware.c
 	${DC_SCM_DIR}/init/init_flash.c

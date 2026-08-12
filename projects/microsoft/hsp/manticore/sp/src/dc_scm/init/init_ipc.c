@@ -4,7 +4,6 @@
 #include "hsp_top.h"
 #include "init_cmd.h"
 #include "init_crypto.h"
-#include "init_ephemeral_key.h"
 #include "init_ipc.h"
 #include "init_spdm.h"
 #include "init_system.h"
@@ -155,16 +154,10 @@ static StaticTask_t admin_to_hsp_task_tcb;
 static StackType_t admin_to_hsp_task_stack[ADMIN_TO_HSP_TASK_STACK_WORDS];
 
 /**
- * Statically allocated buffer to read the DER key from the flash
- */
-static uint8_t key_buffer[RSA_2K_DER_KEY_MAX_SIZE];
-
-/**
  * Command interface for HSM->HSP
  */
 static const struct cmd_interface_ipc_hsm hsm_to_hsp_cmd_interface =
-	cmd_interface_ipc_hsm_static_init (&dmb, &rsa_ephemeral_key_manager, key_buffer,
-	RSA_2K_DER_KEY_MAX_SIZE, &system_attestation_responder, &shared_hash.base);
+	cmd_interface_ipc_hsm_static_init (&dmb, &system_attestation_responder, &shared_hash.base);
 
 /**
  * Message handler for HSM->HSP channel

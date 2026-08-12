@@ -227,35 +227,6 @@ fn set_hsp_ipc_send_failed_expectations(hal: &mut MockHal) {
         .return_const(mock_ipc_message_channel);
 }
 
-fn set_hsp_ipc_send_recv_expectations(hal: &mut MockHal) {
-    let mut mock_ipc_message_channel = MockIpcMessageChannel::new();
-
-    mock_ipc_message_channel
-        .expect_clone()
-        .once()
-        .returning(|| {
-            let mut mock_ipc_message_channel = MockIpcMessageChannel::new();
-            mock_ipc_message_channel
-                .expect_send_request()
-                .once()
-                .returning(|_, _| Ok(()));
-
-            mock_ipc_message_channel
-                .expect_receive_message()
-                .once()
-                .returning(move || {
-                    let mut data = [0; IPC_MESSAGE_LENGTH];
-                    data[0] = 0x00000000;
-                    Some(IpcMessage { data })
-                });
-            mock_ipc_message_channel
-        });
-
-    hal.expect_hsp_ipc_channel()
-        .once()
-        .return_const(mock_ipc_message_channel);
-}
-
 fn set_hsp_ipc_send_recv_expectations_with_recv_data(hal: &mut MockHal, in_data: &[u32]) {
     let mut mock_ipc_message_channel = MockIpcMessageChannel::new();
 

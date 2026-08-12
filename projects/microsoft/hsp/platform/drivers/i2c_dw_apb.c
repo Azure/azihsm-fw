@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "hsp_top.h"
+#include "platform_api.h"
 #include "platform_config.h"
 #include "common/unused.h"
 #include "drivers/i2c_dw_apb_error.h"
@@ -361,25 +362,18 @@ static void i2c_dw_apb_enable_hw (const struct i2c_dw_apb *i2c)
 }
 
 /**
- * Disables the HW block and initializes the internal driver state.
- *
- * This does not call the driver on_shutdown callback.
+ * Wait for the I2C hardware to complete the disable sequence.  Polls IC_ENABLE_STATUS.IC_EN until
+ * cleared, then resets the interrupt mask and internal driver state.
  *
  * @param i2c The I2C driver instance.
  *
  * @return 0 if successful, else an error code.
  */
-static int i2c_dw_apb_disable_hw (const struct i2c_dw_apb *i2c)
+static int i2c_dw_apb_wait_for_disable (const struct i2c_dw_apb *i2c)
 {
 	int status;
 	platform_clock timeout;
 
-	/* Disable the I2C hardware.  This can be done at any point, but the driver must wait for the
-	 * HW state machine to gracefully exit before proceeding. */
-	i2c->regs->DW_apb_i2c_addr_block1.IC_ENABLE &= ~I2C_DW_APB_ENABLE (ENABLE);
-
-	/* Wait for the HW to report that the block has been disabled and that all interrupts have been
-	 * serviced. */
 	status = platform_init_timeout (1000, &timeout);
 	if (status != 0) {
 		return status;
@@ -395,6 +389,93 @@ static int i2c_dw_apb_disable_hw (const struct i2c_dw_apb *i2c)
 
 	i2c->state->rx_pos = 0;
 	i2c_dw_apb_rst_txn_buffers (i2c->state);
+
+	return 0;
+}
+
+/**
+ * Disables the I2C HW block and resets the internal driver state.  This does not invoke the
+ * on_shutdown callback or check for bus activity.
+ *
+ * @param i2c The I2C driver instance.
+ *
+ * @return 0 if successful, else an error code.
+ */
+static int i2c_dw_apb_disable_hw (const struct i2c_dw_apb *i2c)
+{
+	i2c->regs->DW_apb_i2c_addr_block1.IC_ENABLE &= ~I2C_DW_APB_ENABLE (ENABLE);
+
+	return i2c_dw_apb_wait_for_disable (i2c);
+}
+
+/**
+ * Restore the I2C controller to slave mode.  Configures IC_CON for slave operation, sets the
+ * idle interrupt mask, and enables the hardware.
+ *
+ * @param i2c The I2C driver instance.
+ *
+ * @return 0 if successful, else an error code.
+ */
+static int i2c_dw_apb_restore_slave_mode (const struct i2c_dw_apb *i2c)
+{
+	int status;
+
+	status = i2c_dw_apb_configure_slave_mode (i2c);
+	if (status != 0) {
+		return status;
+	}
+
+	i2c_dw_apb_enable_hw (i2c);
+
+	return 0;
+}
+
+/**
+ * Disable the I2C HW block only if the bus is idle.  If the bus is active, returns
+ * I2C_DW_APB_BUS_BUSY without modifying the hardware.  If the bus becomes active during the
+ * disable sequence (detected via SLV_DISABLED_WHILE_BUSY), restores slave mode and returns
+ * I2C_DW_APB_BUS_BUSY.
+ *
+ * The OS scheduler is suspended around the activity check and IC_ENABLE write to ensure
+ * atomicity with respect to other tasks.
+ *
+ * This should only be used when switching from slave to master mode.  Other disable paths should
+ * use i2c_dw_apb_disable_hw directly.
+ *
+ * @param i2c The I2C driver instance.
+ *
+ * @return 0 if successful, I2C_DW_APB_BUS_BUSY if the bus was active, or an error code.
+ */
+static int i2c_dw_apb_disable_hw_if_idle (const struct i2c_dw_apb *i2c)
+{
+	int status;
+
+	platform_os_suspend_scheduler ();
+
+	if (i2c->regs->DW_apb_i2c_addr_block1.IC_STATUS & I2C_DW_APB_STATUS (ACTIVITY)) {
+		platform_os_resume_scheduler ();
+
+		return I2C_DW_APB_BUS_BUSY;
+	}
+
+	i2c->regs->DW_apb_i2c_addr_block1.IC_ENABLE &= ~I2C_DW_APB_ENABLE (ENABLE);
+
+	platform_os_resume_scheduler ();
+
+	status = i2c_dw_apb_wait_for_disable (i2c);
+	if (status != 0) {
+		return status;
+	}
+
+	/* If the slave was busy at the moment the disable completed, we introduced an error condition
+	 * on the bus.  Re-enable slave mode to allow the bus to recover and return I2C_DW_APB_BUS_BUSY
+	 * so the caller can retry the master TX later. */
+	if (i2c->regs->DW_apb_i2c_addr_block1.IC_ENABLE_STATUS &
+		I2C_DW_APB_ENABLED (SLV_DISABLED_WHILE_BUSY)) {
+		i2c_dw_apb_restore_slave_mode (i2c);
+
+		return I2C_DW_APB_BUS_BUSY;
+	}
 
 	return 0;
 }
@@ -600,6 +681,8 @@ static int i2c_dw_apb_poll_interrupts (const struct i2c_dw_apb *i2c)
 	}
 
 	if (irq_status & I2C_DW_APB_IRQ (TX_ABRT)) {
+		int mode_before;
+
 		/* Tx Abort flushes extra data from the Tx FIFO.  Any pending data not in the FIFO should
 		 * also be cleared. */
 		i2c->state->tx_len = 0;
@@ -608,9 +691,21 @@ static int i2c_dw_apb_poll_interrupts (const struct i2c_dw_apb *i2c)
 		 * automatically cleared when the interrupt is cleared. */
 		i2c->state->tx_abort_src = i2c->regs->DW_apb_i2c_addr_block1.IC_TX_ABRT_SOURCE;
 
+		mode_before = i2c_dw_apb_get_mode (i2c);
+
 		i2c->on_tx_abort (i2c);
 
-		i2c_dw_apb_update_clr_interrupt (i2c, I2C_DW_APB_INTR_END,
+		/* on_tx_abort (multimaster) may switch the controller from MASTER back to SLAVE.  Only in
+		 * that MASTER->SLAVE transition do we want the slave idle mask (START_DET), so the slave can
+		 * detect the next incoming transaction; otherwise the master end-of-transaction mask
+		 * (RESTART_DET | STOP_DET) would drop START_DET and leave the slave deaf.  For an abort that
+		 * was already in SLAVE mode (e.g. a slave-transmit abort), keep the end-of-transaction mask
+		 * so STOP_DET/RESTART_DET still finalize the current slave transaction. */
+		intr_mask = ((mode_before == I2C_DW_APB_MODE_MASTER) &&
+			(i2c_dw_apb_get_mode (i2c) == I2C_DW_APB_MODE_SLAVE)) ?
+			I2C_DW_APB_INTR_IDLE : I2C_DW_APB_INTR_END;
+
+		i2c_dw_apb_update_clr_interrupt (i2c, intr_mask,
 			&i2c->regs->DW_apb_i2c_addr_block1.IC_CLR_TX_ABRT);
 
 		irq_state = I2C_DW_APB_IRQ_STATE_BUSY;
@@ -1092,6 +1187,29 @@ int i2c_dw_apb_shutdown_hw (const struct i2c_dw_apb *i2c)
 }
 
 /**
+ * Shutdown the I2C HW block only if the bus is idle.  Returns I2C_DW_APB_BUS_BUSY if the bus is
+ * active, allowing the caller to retry.  This should only be used when switching from slave to
+ * master mode.
+ *
+ * @param i2c The I2C driver instance.
+ *
+ * @return 0 if successful, I2C_DW_APB_BUS_BUSY if the bus was active, or an error code.
+ */
+static int i2c_dw_apb_shutdown_hw_if_idle (const struct i2c_dw_apb *i2c)
+{
+	int status;
+
+	status = i2c_dw_apb_disable_hw_if_idle (i2c);
+	if (status != 0) {
+		return status;
+	}
+
+	i2c->on_shutdown (i2c);
+
+	return 0;
+}
+
+/**
  * Tries to handle a full I2C transaction.
  *
  * @param i2c The I2C driver instance.
@@ -1163,14 +1281,35 @@ int i2c_dw_apb_enable_slave_mode (const struct i2c_dw_apb *i2c)
 		return status;
 	}
 
-	status = i2c_dw_apb_configure_slave_mode (i2c);
+	return i2c_dw_apb_restore_slave_mode (i2c);
+}
+
+/**
+ * Switches the I2C HW to SLAVE mode without invoking on_shutdown callbacks.  Safe to call from
+ * an ISR immediately after a MASTER TX completes (STOP_DET) to eliminate the race window where
+ * an incoming transaction could be missed before a task re-enables SLAVE mode.
+ *
+ * @param i2c The I2C driver instance.
+ *
+ * @return 0 if successful, else an error code.
+ */
+int i2c_dw_apb_enable_slave_mode_isr (const struct i2c_dw_apb *i2c)
+{
+	int status;
+
+	if (i2c_dw_apb_is_hw_enabled (i2c) && (i2c_dw_apb_get_mode (i2c) == I2C_DW_APB_MODE_SLAVE)) {
+		// SLAVE mode already active.
+		return 0;
+	}
+
+	/* Use disable_hw to avoid calling on_shutdown() which posts a semaphore (not ISR-safe) and
+	 * would corrupt the txn_result for the transaction that just succeeded. */
+	status = i2c_dw_apb_disable_hw (i2c);
 	if (status != 0) {
 		return status;
 	}
 
-	i2c_dw_apb_enable_hw (i2c);
-
-	return 0;
+	return i2c_dw_apb_restore_slave_mode (i2c);
 }
 
 /**
@@ -1199,7 +1338,7 @@ int i2c_dw_apb_begin_master_transmit (const struct i2c_dw_apb *i2c, uint8_t targ
 		return I2C_DW_APB_NOT_SUPPORTED;
 	}
 
-	status = i2c_dw_apb_shutdown_hw (i2c);
+	status = i2c_dw_apb_shutdown_hw_if_idle (i2c);
 	if (status != 0) {
 		return status;
 	}
