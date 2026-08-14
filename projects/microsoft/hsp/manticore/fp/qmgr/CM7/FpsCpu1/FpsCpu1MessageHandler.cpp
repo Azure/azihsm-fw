@@ -25,6 +25,41 @@ extern "C"
 //-----------------------------------------------------------------------------
 #define CHECK_RESOURCE_GROUP_HAS_VALID_KEY(RGID) ( _rgid2keyValid[RGID] != 0)
 
+
+// CDMA key vault region requires 32-bit-only access (no STRD/STRH/STRB).
+// memset/memcpy may emit STRD which faults on this MMIO region. Use this
+// helper to guarantee 32-bit single-word stores. NOT inlined to avoid code
+// duplication blowing the FP1 IRAM budget. Length is in 32-bit words (not
+// bytes) to eliminate the runtime divide-by-sizeof(uint32_t).
+static void __attribute__((noinline)) vault_write_slot(uint32_t* keySlot, const uint32_t* src, uint32_t numWords)
+{
+    for (uint32_t w = 0; w < numWords; w++)
+    {
+        writel(src[w], (uint32_t)&keySlot[w]);
+    }
+}
+
+// Zeroize wrapper: calls vault_write_slot with a static all-zero source.
+// Saves the duplicate function body (vault_zero_slot is now a thin wrapper);
+// the 32-byte zero buffer lives in .rodata.
+static const uint32_t vault_zero_src[AES_KEY_LEN_IN_WORDS] = {0};
+
+static void __attribute__((noinline)) vault_zero_slot(uint32_t* keySlot)
+{
+    vault_write_slot(keySlot, vault_zero_src, AES_KEY_LEN_IN_WORDS);
+}
+
+// CDMA vault seqlock bump. Writer-side (FP1) parity counter at
+// M7_FPS_CPU12_CDMA_VAULT_SEQ_LOCK. Call in pairs around any vault MMIO
+// mutation: first bump = even->odd (enter), second bump = odd->even (exit).
+// FP2 reader retries while value is odd or changes across a read.
+// Callers: KeyUpdate() (host key create/delete), _HandleTeardown() (VF
+// teardown / FLR / NSSR).
+static void __attribute__((noinline)) vault_seq_bump(void)
+{
+    (*((volatile uint32_t*)M7_FPS_CPU12_CDMA_VAULT_SEQ_LOCK))++;
+}
+
 void fpsCpu1::FpsCpuNormalBootInitialize()
 {
     Debug_Log(cLogMonitor, cLogInfo, ("FP cpu 1 normal boot!\n"));
@@ -163,15 +198,17 @@ CP2FPMsgSts fpsCpu1::FpsCpuHandleStatusChange(Fastpath_Status_t changeStatus, ui
 
 Error_t fpsCpu1::KeyUpdate(CP2FPMsgDataKeyUpdate_t* pKeyUpdate)
 {
+    Error_t errCode = cEcNoError;
     #ifdef NEW_AES_KEY_VALIDATION_SUPPORT
     uint8_t VFId = MAP_FUNCTION_ID(pKeyUpdate->vfId);
-    //DebugLogLvDbgInfo(cLogCPU1Common, cLogDebug, ("KeyUpdate, vfId:0x%X keySubIdx:0x%X\n", ((pKeyUpdate->keySubIndex & 0xFF) << 0x10UL) | VFId ), "16,16");
-    //DebugLogLvDbgInfo(cLogCPU1Common, cLogDebug, ("KeyUpdate, action:0x%X rgid:0x%X\n", (pKeyUpdate->resourceGroupId << 0x10UL) | pKeyUpdate->action ), "16,16");
     uint16_t sessionId = pKeyUpdate->sessionId;
     uint8_t appId = pKeyUpdate->appId;
     uint8_t flag = pKeyUpdate-> flag;
     uint16_t keyIndex = (pKeyUpdate->resourceGroupId * (KEYUPDATE_KEY_SUB_IDX_MAX + 1)) + pKeyUpdate->keySubIndex;
     uint8_t rgIndex, keySubIndex;
+    bool doDeleteMatching = false;
+    bool deleteAllForApp  = false;
+    AesKeyVault_t* keyVaultArr = (AesKeyVault_t*)(&(rCdma->aesKeyVaultAddr));
 
     if(keyIndex >= KEY_INDEX_MAX)
     {
@@ -226,14 +263,16 @@ Error_t fpsCpu1::KeyUpdate(CP2FPMsgDataKeyUpdate_t* pKeyUpdate)
         return cEcError;
     } // else do nothing
 
+    // Seqlock: enter writer critical section (counter: even -> odd).
+    vault_seq_bump();
     switch(pKeyUpdate->action)
     {
         // Delete Key at a given Key Index if SessionId and Application ID match
         case cActionKeyDisable:
-        {
             if(VFId == _key2OwnerVfid[keyIndex] && sessionId == _pKey2SessionID[keyIndex] && appId == _pKey2AppID[keyIndex])
             {
                 _rgid2keyValid[pKeyUpdate->resourceGroupId] &= ~(BIT(pKeyUpdate->keySubIndex));
+                vault_zero_slot(keyVaultArr[keyIndex].key);
                 CleanKeyInfo(keyIndex);
                 if (!CHECK_RESOURCE_GROUP_HAS_VALID_KEY(pKeyUpdate->resourceGroupId))
                 {
@@ -242,72 +281,64 @@ Error_t fpsCpu1::KeyUpdate(CP2FPMsgDataKeyUpdate_t* pKeyUpdate)
             }
             else
             {
-                //DebugLogLvDbgInfo(cLogCPU1Common, cLogInfo, ("Invalid Key:0x%X\n", keyIndex ), "32");
                 //DebugLogLvDbgInfo(cLogCPU1Common, cLogInfo, ("Invalid Key:VFID 0x%X _key2OwnerVfid[keyIndex]\n", (_key2OwnerVfid[keyIndex] << 0x10UL) | VFId), "16,16");
                 //DebugLogLvDbgInfo(cLogCPU1Common, cLogInfo, ("Invalid Key:SessionID 0x%X _pKey2SessionID[keyIndex]\n", (_pKey2SessionID[keyIndex] << 0x10UL) | sessionId), "16,16");
                 //DebugLogLvDbgInfo(cLogCPU1Common, cLogInfo, ("Invalid Key:AppID 0x%X _pKey2AppID[keyIndex]\n", (_pKey2AppID[keyIndex] << 0x10UL) | appId), "16,16");
-                return cEcError;
-            }
 
+                errCode = cEcError;
+            }
             break;
-        }
-        // Delete all ephemeral keys for a given session in a given application
         case cActionEphemeralKeyForSessionDelete:
-        {
-            for(keyIndex = 0; keyIndex < KEY_INDEX_MAX; keyIndex++)
-            {
-                if(VFId == _key2OwnerVfid[keyIndex] && sessionId == _pKey2SessionID[keyIndex] && appId == _pKey2AppID[keyIndex] && 1 == _pKeyIsEphemeral[keyIndex])
-                {
-                    rgIndex = keyIndex / (KEYUPDATE_KEY_SUB_IDX_MAX + 1);
-                    keySubIndex = keyIndex % (KEYUPDATE_KEY_SUB_IDX_MAX + 1);
-                    _rgid2keyValid[rgIndex] &= ~(BIT(keySubIndex));
-                    CleanKeyInfo(keyIndex);
-                }
-            }
-            for(rgIndex = 0; rgIndex < KEYUPDATE_RGID_MAX; rgIndex++)
-            {
-                if (!CHECK_RESOURCE_GROUP_HAS_VALID_KEY(rgIndex))
-                {
-                    _rgid2OwnerVfid[rgIndex] = RGID_NO_OWNER_VF;
-                }
-            }
+            doDeleteMatching = true;
             break;
-        }
-        // Delete all keys for a given application
         case cActionAllKeysDeleteForApp:
-        {
-            for(keyIndex = 0; keyIndex < KEY_INDEX_MAX; keyIndex++)
-            {
-                if(VFId == _key2OwnerVfid[keyIndex] && appId == _pKey2AppID[keyIndex])
-                {
-                    rgIndex = keyIndex / (KEYUPDATE_KEY_SUB_IDX_MAX + 1);
-                    keySubIndex = keyIndex % (KEYUPDATE_KEY_SUB_IDX_MAX + 1);
-                    _rgid2keyValid[rgIndex] &= ~(BIT(keySubIndex));
-                    CleanKeyInfo(keyIndex);
-                }
-            }
-            for(rgIndex = 0; rgIndex < KEYUPDATE_RGID_MAX; rgIndex++)
-            {
-                if (!CHECK_RESOURCE_GROUP_HAS_VALID_KEY(rgIndex))
-                {
-                    _rgid2OwnerVfid[rgIndex] = RGID_NO_OWNER_VF;
-                }
-            }
+            doDeleteMatching = true;
+            deleteAllForApp  = true;
             break;
-        }
-        // create a new key
         case cActionKeyEnable:
-        {
+            vault_write_slot(keyVaultArr[keyIndex].key, pKeyUpdate->keyData, AES_KEY_LEN_IN_WORDS);
+            memset(pKeyUpdate->keyData, 0, sizeof(pKeyUpdate->keyData));
+
             _rgid2keyValid[pKeyUpdate->resourceGroupId] |= BIT(pKeyUpdate->keySubIndex);
             _key2OwnerVfid[keyIndex] = VFId;
             _pKey2SessionID[keyIndex] = sessionId;
             _pKey2AppID[keyIndex] = appId;
             _pKeyIsEphemeral[keyIndex] = flag;
             break;
-        }
         default:
-            return cEcError;
+            errCode = cEcError;
+            break;
     }
+
+    if (doDeleteMatching)
+    {
+        for (keyIndex = 0; keyIndex < KEY_INDEX_MAX; keyIndex++)
+        {
+            if (VFId != _key2OwnerVfid[keyIndex] || appId != _pKey2AppID[keyIndex])
+            {
+                continue;
+            }
+            if (!deleteAllForApp &&
+                (sessionId != _pKey2SessionID[keyIndex] || 1 != _pKeyIsEphemeral[keyIndex]))
+            {
+                continue;
+            }
+            rgIndex     = keyIndex / (KEYUPDATE_KEY_SUB_IDX_MAX + 1);
+            keySubIndex = keyIndex % (KEYUPDATE_KEY_SUB_IDX_MAX + 1);
+            _rgid2keyValid[rgIndex] &= ~(BIT(keySubIndex));
+            vault_zero_slot(keyVaultArr[keyIndex].key);
+            CleanKeyInfo(keyIndex);
+        }
+        for (rgIndex = 0; rgIndex < KEYUPDATE_RGID_MAX; rgIndex++)
+        {
+            if (!CHECK_RESOURCE_GROUP_HAS_VALID_KEY(rgIndex))
+            {
+                _rgid2OwnerVfid[rgIndex] = RGID_NO_OWNER_VF;
+            }
+        }
+    }
+    // Seqlock: leave writer critical section (counter: odd -> even).
+    vault_seq_bump();
     #else
     uint8_t VFId = MAP_FUNCTION_ID(pKeyUpdate->vfId);
 
@@ -411,7 +442,7 @@ Error_t fpsCpu1::KeyUpdate(CP2FPMsgDataKeyUpdate_t* pKeyUpdate)
         // else do nothing
     }
     #endif
-    return cEcNoError;
+    return errCode;
 }
 
 Error_t fpsCpu1::FpModeChange(CP2FPMsgDataVfModeChange_t* pCtx)
@@ -1077,15 +1108,28 @@ void fpsCpu1::_HandleTeardown(uint8_t vfId)
     _teardownQueueBlockBitMap |= pVfInfo->queueBlkBitMap;
     _teardownQueueBlock65BitMap = pVfInfo->queueBlk65BitMap;
 
-    // Reset key and rgid owner table in teardown
+    // Reset key and rgid owner table in teardown.
+    AesKeyVault_t* keyVaultArr = (AesKeyVault_t*)(&(rCdma->aesKeyVaultAddr));
+    // Seqlock: enter writer critical section before zeroing vault slots.
+    vault_seq_bump();
     for (uint8_t i = 0; i < MAX_FP_RGID_NUM; i++)
     {
         if (_rgid2OwnerVfid[i] == vfId)
         {
+            for (uint8_t k = 0; k < (KEYUPDATE_KEY_SUB_IDX_MAX + 1); k++)
+            {
+                if (_rgid2keyValid[i] & BIT(k))
+                {
+                    uint16_t idx = i * (KEYUPDATE_KEY_SUB_IDX_MAX + 1) + k;
+                    vault_zero_slot(keyVaultArr[idx].key);
+                }
+            }
             _rgid2keyValid[i] = 0;
             _rgid2OwnerVfid[i] = RGID_NO_OWNER_VF;
         }
     }
+    // Seqlock: leave writer critical section; FP2 readers may now proceed.
+    vault_seq_bump();
 
     #ifdef NEW_AES_KEY_VALIDATION_SUPPORT
     for(uint32_t keyIndex = 0; keyIndex < KEY_INDEX_MAX; keyIndex++)

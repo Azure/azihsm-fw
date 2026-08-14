@@ -127,10 +127,6 @@ pub fn handle_soft_interrupt<E: HsmEnvTrait>(handler: &mut HsmEventHandler<E>) {
     if HsmDtcmMemMap::self_test_req_ci().get() != HsmDtcmMemMap::self_test_req_pi().get() {
         handler.on_event(HsmFsmEvent::SelfTestRequest);
     }
-
-    if HsmDtcmMemMap::get_bulk_key_req_ci().get() != HsmDtcmMemMap::get_bulk_key_req_pi().get() {
-        handler.on_event(HsmFsmEvent::GetBulkKeyRequest);
-    }
 }
 
 fn find_pka_index(int: u32, start_index: u32) -> usize {

@@ -106,7 +106,8 @@ impl<'a> PreOpAesFpSelfTest<'a> {
         // Send IPC to delete all keys in the self test vault, ignore errors because keys may not
         // exist. DeleteAll deletes all the keys loaded with the AppID
         // regardless of the AesBulkKeyType
-        let _ = self.send_key_update_ipc(KeyUpdateAction::DeleteAll, None, AesBulkKeyType::Xts);
+        let _ =
+            self.send_key_update_ipc(KeyUpdateAction::DeleteAll, None, AesBulkKeyType::Xts, None);
 
         self.cdma_io.clear_key_vault()?;
 
@@ -271,32 +272,34 @@ impl<'a> PreOpAesFpSelfTest<'a> {
         };
 
         // create Encyption key
-        let key = self.cdma_io.import_key(key, SELF_TEST_VAULT_ID as u8)?;
+        let key_id = self.cdma_io.import_key(key, SELF_TEST_VAULT_ID as u8)?;
 
-        // setup and send key update IPC message
+        // setup and send key update IPC message; FP writes the key bytes into the vault.
+        let key_bytes = u32_slice_to_key_bytes(key);
         self.send_key_update_ipc(
             KeyUpdateAction::Create,
-            Some(key.key_index()),
+            Some(key_id.key_index()),
             AesBulkKeyType::GcmUnapproved,
+            Some(&key_bytes),
         )?;
 
         // track the imported key for periodic self test
         match test_name {
             CdmaIoTestName::GcmAlignedAndUnalignedData => {
-                self.update_self_test_key_table(CdmaKeyIndex::GcmAlignedAndUnalignedData, key)?
+                self.update_self_test_key_table(CdmaKeyIndex::GcmAlignedAndUnalignedData, key_id)?
             }
             CdmaIoTestName::GcmAlignedDataOnly => {
-                self.update_self_test_key_table(CdmaKeyIndex::GcmAlignedDataOnly, key)?
+                self.update_self_test_key_table(CdmaKeyIndex::GcmAlignedDataOnly, key_id)?
             }
             CdmaIoTestName::GcmAadNoAlignedData => {
-                self.update_self_test_key_table(CdmaKeyIndex::GcmAadNoAlignedData, key)?
+                self.update_self_test_key_table(CdmaKeyIndex::GcmAadNoAlignedData, key_id)?
             }
             _ => Err(AdminErr::CdmaIoAesGcmSelfTestFailed)?,
         }
 
         // execute CDMA IO operation Encryption test
         self.execute_gcm_cdma_io(
-            key,
+            key_id,
             test_vector,
             test_vector.ciphertext,
             AesFpMode::GcmEncrypt,
@@ -325,12 +328,18 @@ impl<'a> PreOpAesFpSelfTest<'a> {
         };
 
         // execute CDMA IO operation Decryption test
-        self.execute_gcm_cdma_io(key, test_vector, ciphertext, AesFpMode::GcmDecrypt, tag_id)
-            .map_err(|_| {
-                // zeroize input and output buffers
-                self.cdma_io.zeroize_buffers();
-                AdminErr::CdmaIoAesGcmSelfTestFailed
-            })?;
+        self.execute_gcm_cdma_io(
+            key_id,
+            test_vector,
+            ciphertext,
+            AesFpMode::GcmDecrypt,
+            tag_id,
+        )
+        .map_err(|_| {
+            // zeroize input and output buffers
+            self.cdma_io.zeroize_buffers();
+            AdminErr::CdmaIoAesGcmSelfTestFailed
+        })?;
 
         Ok(())
     }
@@ -556,16 +565,20 @@ impl<'a> PreOpAesFpSelfTest<'a> {
             _ => Err(AdminErr::CdmaIoAesXtsSelfTestFailed)?,
         }
 
-        // setup and send key update IPC message
+        // setup and send key update IPC messages; FP writes the key bytes into the vault.
+        let enc_key_bytes = u32_slice_to_key_bytes(key);
+        let tweak_key_bytes = u32_slice_to_key_bytes(&test_vector.tweak_key);
         self.send_key_update_ipc(
             KeyUpdateAction::Create,
             Some(enc_key.key_index()),
             AesBulkKeyType::Xts,
+            Some(&enc_key_bytes),
         )?;
         self.send_key_update_ipc(
             KeyUpdateAction::Create,
             Some(tweak_key.key_index()),
             AesBulkKeyType::Xts,
+            Some(&tweak_key_bytes),
         )?;
 
         // execute CDMA IO operation Encryption test
@@ -717,11 +730,16 @@ impl<'a> PreOpAesFpSelfTest<'a> {
         self.self_test_key_table
     }
 
-    /// Send IPC message to inform FP that keys have been updated in the CDMA key vault
+    /// Send IPC message to inform FP that keys have been updated in the CDMA key vault.
+    /// FP is the sole writer of the CDMA vault contents (see ADR-0002): on Create,
+    /// `key_bytes` carries the raw 32-byte AES key; FP writes it into the vault.
+    /// On Delete / DeleteAll the parameter is ignored (caller passes `None`).
     ///
     /// # Arguments
-    /// * `ipc_channel` - Admin to FP IPC Channel for sending messages
+    /// * `action` - Key update action (Create / Delete / DeleteAll)
     /// * `key_index` - The CDMA key vault key index of updated key
+    /// * `key_type` - AES bulk key type
+    /// * `key_bytes` - Raw 32-byte key for Create; `None` for Delete / DeleteAll
     ///
     /// # Returns
     ///
@@ -732,7 +750,9 @@ impl<'a> PreOpAesFpSelfTest<'a> {
         action: KeyUpdateAction,
         key_index: Option<u8>,
         key_type: AesBulkKeyType,
+        key_bytes: Option<&[u8; KEY_SIZE]>,
     ) -> McrResult<()> {
+        let key_data = key_bytes.copied().unwrap_or([0u8; KEY_SIZE]);
         let message = IpcMessageKeyUpdate {
             info: KeyUpdateInfo {
                 key_index: key_index.unwrap_or_default(),
@@ -746,6 +766,7 @@ impl<'a> PreOpAesFpSelfTest<'a> {
                 flag: AesKeyFlag::new()
                     .with_session_only(false)
                     .with_key_type(key_type),
+                key_data,
             },
             ..Default::default()
         };
@@ -814,4 +835,18 @@ impl<'a> PreOpAesFpSelfTest<'a> {
 
         Ok(())
     }
+}
+
+/// Convert a `&[u32; 8]` AES-256 key into a `[u8; 32]` little-endian byte array
+/// suitable for the IPC payload.
+fn u32_slice_to_key_bytes(key: &[u32]) -> [u8; KEY_SIZE] {
+    debug_assert_eq!(core::mem::size_of_val(key), KEY_SIZE);
+    let mut out = [0u8; KEY_SIZE];
+    for (chunk, &word) in out
+        .chunks_exact_mut(core::mem::size_of::<u32>())
+        .zip(key.iter())
+    {
+        chunk.copy_from_slice(&word.to_le_bytes());
+    }
+    out
 }

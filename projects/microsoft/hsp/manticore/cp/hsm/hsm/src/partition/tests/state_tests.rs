@@ -48,7 +48,6 @@ fn test_disable() {
     hal.expect_cdma_vault_addr()
         .return_const(cdma_vault_memory.as_ptr() as usize);
     hal.expect_cdma_vault_meta_data()
-        .times(1)
         .return_const(cdma_vault_meta_data.as_ptr() as usize);
 
     let mut pka = MockPka::new();
@@ -141,7 +140,6 @@ fn test_migrate() {
     hal.expect_cdma_vault_addr()
         .return_const(cdma_vault_memory.as_ptr() as usize);
     hal.expect_cdma_vault_meta_data()
-        .times(1)
         .return_const(cdma_vault_meta_data.as_ptr() as usize);
 
     let mut pka = MockPka::new();
@@ -285,7 +283,8 @@ fn test_clear_partition_info() {
     part_store_ref.partition_identifier.id = [0xA9; 16];
     part_store_ref.partition_identifier.priv_key = [0xAA; 48];
     part_store_ref.partition_identifier.pub_key = [0xAB; 97];
-    part_store_ref.unwrapping_key_bk_valid = true;
+    part_store_ref.unwrapping_key_required = true;
+    part_store_ref.unwrapping_key_bk_valid = UnwrappingKeyValidity::PendingPct as u8;
     part_store_ref.unwrapping_key_bk = [0xAC; 516];
     part_store_ref.nonce = (1..33u8).collect::<Vec<_>>().try_into().unwrap();
 
@@ -310,7 +309,11 @@ fn test_clear_partition_info() {
     assert_eq!(part_store_ref.partition_identifier.id, [0x00; 16]);
     assert_eq!(part_store_ref.partition_identifier.priv_key, [0x00; 48]);
     assert_eq!(part_store_ref.partition_identifier.pub_key, [0x00; 97]);
-    assert!(!part_store_ref.unwrapping_key_bk_valid);
+    assert_eq!(
+        part_store_ref.unwrapping_key_bk_valid,
+        UnwrappingKeyValidity::Empty as u8
+    );
+    assert!(!part_store_ref.unwrapping_key_required);
     assert_eq!(part_store_ref.unwrapping_key_bk, [0x00; 516]);
     assert_eq!(part_store_ref.nonce, expected_nonce);
     assert!(state.get_cert_chain_lengths_info().is_none());
@@ -445,7 +448,6 @@ fn test_cdma_vault_import_key_delete_key() {
     hal.expect_cdma_vault_addr()
         .return_const(cdma_vault_memory.as_ptr() as usize);
     hal.expect_cdma_vault_meta_data()
-        .times(1)
         .return_const(cdma_vault_meta_data.as_ptr() as usize);
     hal.expect_clone().once().returning(move || {
         let mut hal = MockHal::new();

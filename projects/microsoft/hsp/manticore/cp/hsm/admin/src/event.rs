@@ -177,9 +177,6 @@ pub(crate) enum AdminFsmEvent {
     /// AES GCM Extension (workaround) request
     AesGcmExtRequest,
 
-    /// Get Bulk Key response from HSM via simplex queue
-    GetBulkKeyResponse,
-
     /// Unknown
     Unknown,
 }
@@ -268,7 +265,6 @@ impl From<AdminFsmEvent> for u32 {
             AdminFsmEvent::StopInterfaceRequest(_) => 29,
             AdminFsmEvent::Nssr(_) => 30,
             AdminFsmEvent::AesGcmExtRequest => 31,
-            AdminFsmEvent::GetBulkKeyResponse => 32,
             AdminFsmEvent::Unknown => 0xFFFFFFFF,
         }
     }

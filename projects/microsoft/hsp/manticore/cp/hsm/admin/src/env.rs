@@ -63,8 +63,6 @@ pub(crate) trait AdminEnvTrait: Clone {
     type AesGcmIvQueue: SimplexPipeTrait<AesGcmIV> + Clone;
     type AesGcmReqQueue: SimplexPipeTrait<AesGcmReqEntry> + Clone;
     type AesGcmRespQueue: SimplexPipeTrait<AesGcmRespEntry> + Clone;
-    type GetBulkKeyReqQueue: SimplexPipeTrait<GetBulkKeyReqEntry> + Clone;
-    type GetBulkKeyRespQueue: SimplexPipeTrait<GetBulkKeyRespEntry> + Clone;
     type SoftAes: SoftAesTrait + Clone;
     type CdmaIo: CdmaIoTrait + Clone;
     type Rng: RngTrait + Clone;
@@ -172,12 +170,6 @@ pub(crate) trait AdminEnvTrait: Clone {
     /// Get GCM Response queue pipe
     fn aes_gcm_resp_queue(&self) -> &Self::AesGcmRespQueue;
 
-    /// Get Bulk Key request queue pipe
-    fn get_bulk_key_req_queue(&self) -> &Self::GetBulkKeyReqQueue;
-
-    /// Get Bulk Key response queue pipe
-    fn get_bulk_key_resp_queue(&self) -> &Self::GetBulkKeyRespQueue;
-
     /// Get RNG instance
     fn rng(&self) -> &Self::Rng;
 
@@ -223,8 +215,6 @@ pub(crate) struct AdminEnv {
     aes_gcm_iv_queue: SimplexPipe<AesGcmIV>,
     aes_gcm_req_queue: SimplexPipe<AesGcmReqEntry>,
     aes_gcm_resp_queue: SimplexPipe<AesGcmRespEntry>,
-    get_bulk_key_req_queue: SimplexPipe<GetBulkKeyReqEntry>,
-    get_bulk_key_resp_queue: SimplexPipe<GetBulkKeyRespEntry>,
     rng: Rng,
 }
 
@@ -251,8 +241,6 @@ impl AdminEnvTrait for AdminEnv {
     type AesGcmIvQueue = SimplexPipe<AesGcmIV>;
     type AesGcmReqQueue = SimplexPipe<AesGcmReqEntry>;
     type AesGcmRespQueue = SimplexPipe<AesGcmRespEntry>;
-    type GetBulkKeyReqQueue = SimplexPipe<GetBulkKeyReqEntry>;
-    type GetBulkKeyRespQueue = SimplexPipe<GetBulkKeyRespEntry>;
     type Rng = Rng;
 
     fn pcie_cntrl(&self) -> &Self::PcieController {
@@ -379,14 +367,6 @@ impl AdminEnvTrait for AdminEnv {
         &self.aes_gcm_resp_queue
     }
 
-    fn get_bulk_key_req_queue(&self) -> &Self::GetBulkKeyReqQueue {
-        &self.get_bulk_key_req_queue
-    }
-
-    fn get_bulk_key_resp_queue(&self) -> &Self::GetBulkKeyRespQueue {
-        &self.get_bulk_key_resp_queue
-    }
-
     fn rng(&self) -> &Self::Rng {
         &self.rng
     }
@@ -460,6 +440,18 @@ impl AdminEnv {
         InterruptController::default().clear(Interrupt::cp0_itcm_err_irq);
         InterruptController::default().enable(Interrupt::cp0_itcm_err_irq);
 
+        // Enable GDMA error interrupts
+        InterruptController::default().clear(Interrupt::gdma_err_irq);
+        InterruptController::default().enable(Interrupt::gdma_err_irq);
+
+        // Enable UCD IO Inbound error interrupts
+        InterruptController::default().clear(Interrupt::ucd_ib_err_irq);
+        InterruptController::default().enable(Interrupt::ucd_ib_err_irq);
+
+        // Enable UCD IO Outbound error interrupts
+        InterruptController::default().clear(Interrupt::ucd_ob_err_irq);
+        InterruptController::default().enable(Interrupt::ucd_ob_err_irq);
+
         // Reset the following IPs in the Manticore SoC during WarmReset due to RAS & impactful
         // update path.
         //
@@ -516,8 +508,6 @@ impl AdminEnv {
 
         // Enable GDMA error interrupt
         GdmaController::enable_gdma_err_int();
-        InterruptController::default().clear(Interrupt::gdma_err_irq);
-        InterruptController::default().enable(Interrupt::gdma_err_irq);
 
         let heap_region = GsRamMemMap::admin_heap();
 
@@ -609,18 +599,6 @@ impl AdminEnv {
             pi: SocMemMap::aes_gcm_resp_queue_tail(),
         });
 
-        let get_bulk_key_req_queue = SimplexPipe::new(SimplexPipeConfig {
-            queue: SocMemMap::get_bulk_key_req_queue(),
-            ci: SocMemMap::get_bulk_key_req_ci(),
-            pi: SocMemMap::get_bulk_key_req_pi(),
-        });
-
-        let get_bulk_key_resp_queue = SimplexPipe::new(SimplexPipeConfig {
-            queue: SocMemMap::get_bulk_key_resp_queue(),
-            ci: SocMemMap::get_bulk_key_resp_ci(),
-            pi: SocMemMap::get_bulk_key_resp_pi(),
-        });
-
         // IMPORTANT: No ELBI DOE registers should be read or written to prior to PcieController::new()
         // which sets PCIE_TOP_REG.PERST_N_DIS = true. Doing so results in an infinite ROM boot loop.
         let pcie_cntrl = PcieController::new_with_phy_init()?;
@@ -696,8 +674,6 @@ impl AdminEnv {
             aes_gcm_iv_queue,
             aes_gcm_req_queue,
             aes_gcm_resp_queue,
-            get_bulk_key_req_queue,
-            get_bulk_key_resp_queue,
             rng,
         };
 

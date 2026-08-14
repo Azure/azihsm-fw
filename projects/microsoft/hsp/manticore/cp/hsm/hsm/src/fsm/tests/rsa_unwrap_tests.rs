@@ -1168,11 +1168,11 @@ fn test_import_aesbulk256() {
         .once()
         .returning(|_| Ok(()));
     session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
 
@@ -1273,11 +1273,11 @@ fn test_import_aesbulk256_rollback_on_err() {
         .once()
         .returning(|_| Ok(()));
     session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
 
@@ -1796,6 +1796,7 @@ fn import_der_aesbulk256_key() -> HsmResult<AesBulk256Cmd<MockEnv>> {
         Default::default(),
         0,
         channel.unwrap(),
+        SecureByteArray::<32>::new([0u8; 32]),
     ))
 }
 

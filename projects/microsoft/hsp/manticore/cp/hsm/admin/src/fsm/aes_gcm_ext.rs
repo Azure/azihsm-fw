@@ -16,18 +16,12 @@ use mcr_gdma_controller::DmaTxnDesc;
 use mcr_gdma_controller::GdmaChannelTrait;
 use mcr_simplex::SimplexPipeTrait;
 use mcr_types::AesGcmExtRespErr;
-use mcr_types::GetBulkKeyReqEntry;
-use zerocopy::IntoBytes;
-use zeroize::Zeroize;
 
 /// FSM states for per-request handling
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AesGcmExtState {
     /// Initial State
     Idle,
-
-    /// Waiting for bulk key response from HSM via simplex queue
-    WaitKeyResponse,
 
     /// DMA input data
     DmaInInputData,
@@ -59,8 +53,36 @@ pub(crate) struct AesGcmExtFsm<E: AdminEnvTrait + 'static> {
     /// Status field to write back in response CQE
     status: AesGcmExtRespErr,
 
-    /// AES GCM 256-bit bulk key
-    key: [u32; 8],
+    /// RAII guard that zeros SQE[20..51] when the request completes (covers
+    /// Pending yields across DMA stages). FP is the single source of truth for
+    /// restoring the IV and ServiceIndicator from meta.IV / key flags after
+    /// Admin signals completion. Installed in process_request_queue, dropped
+    /// in update_response_queue.
+    sqe_restore: Option<SqeRestore>,
+}
+
+/// RAII helper: on Drop, wipes the 32 bytes of bulk key that FP placed at
+/// SQE[20..51], then writes `unaligned_dst_data_len` to CQE offset 44-47.
+/// The write must happen AFTER the wipe because offset 44-47 falls inside
+/// the [20..52) key zone. Combining both operations in Drop guarantees the
+/// correct ordering in a single place.
+///
+/// FP -- the single source of truth for host-visible CQE fields -- restores
+/// the IV at SQE[20..31] and recomputes the ServiceIndicator at SQE[48..51]
+/// after Admin signals completion.
+struct SqeRestore {
+    addr: usize,
+    /// Value to write at CQE offset 44-47 after the key wipe.
+    unaligned_dst_data_len: u32,
+}
+
+impl Drop for SqeRestore {
+    fn drop(&mut self) {
+        let sqe: &mut [u8] = mcr_mem_map::mem_addr_to_slice(self.addr, 128);
+        sqe[20..52].fill(0);
+        // CQE offset 44-47 was just zeroed; write the real value now.
+        sqe[44..48].copy_from_slice(&self.unaligned_dst_data_len.to_le_bytes());
+    }
 }
 
 impl<E: AdminEnvTrait> CmdFsm for AesGcmExtFsm<E> {
@@ -73,9 +95,6 @@ impl<E: AdminEnvTrait> CmdFsm for AesGcmExtFsm<E> {
     fn on_event(&mut self, event: Self::Event, tag: TagId) -> Result<(), Self::Error> {
         let result = match (self.state, event) {
             (AesGcmExtState::Idle, AdminFsmEvent::AesGcmExtRequest) => {
-                self.pre_process_request_queue(tag)
-            }
-            (AesGcmExtState::WaitKeyResponse, AdminFsmEvent::GetBulkKeyResponse) => {
                 self.process_request_queue(tag)
             }
             (AesGcmExtState::DmaInInputData, AdminFsmEvent::DmaComplete) => {
@@ -83,10 +102,7 @@ impl<E: AdminEnvTrait> CmdFsm for AesGcmExtFsm<E> {
             }
             (AesGcmExtState::DmaOut, AdminFsmEvent::DmaComplete) => self.on_out_dma_complete(tag),
             (AesGcmExtState::DmaInInputData, AdminFsmEvent::AesGcmExtRequest)
-            | (AesGcmExtState::DmaOut, AdminFsmEvent::AesGcmExtRequest)
-            | (AesGcmExtState::WaitKeyResponse, AdminFsmEvent::AesGcmExtRequest) => {
-                Err(AdminErr::Pending)
-            }
+            | (AesGcmExtState::DmaOut, AdminFsmEvent::AesGcmExtRequest) => Err(AdminErr::Pending),
             _ => self.on_unexpected_event(tag, event),
         };
 
@@ -116,12 +132,12 @@ impl<E: AdminEnvTrait> AesGcmExtFsm<E> {
             sqe_idx: 0,
             sqe_address: 0,
             status: AesGcmExtRespErr::Success,
-            key: [0u32; 8],
+            sqe_restore: None,
         }
     }
 
-    /// Pre-Process request queue
-    fn pre_process_request_queue(&mut self, _tag: TagId) -> Result<(), AdminErr> {
+    /// Process AES GCM request queue
+    fn process_request_queue(&mut self, tag: TagId) -> Result<(), AdminErr> {
         self.status = AesGcmExtRespErr::Success;
 
         // If Spurious request detected, return Pending but dont send any response.
@@ -150,53 +166,17 @@ impl<E: AdminEnvTrait> AesGcmExtFsm<E> {
             Err(AdminErr::InvalidEvent)?
         }
 
-        self.send_bulk_key_request()
-    }
-
-    /// Send a bulk key request to HSM over dedicated simplex queue
-    fn send_bulk_key_request(&mut self) -> Result<(), AdminErr> {
-        let cdma_key_id = AesBulk256KeyId::from(self.sqe_ref().cmd.key_idx as u16);
-
-        let req = GetBulkKeyReqEntry {
-            key_index: cdma_key_id.key_index(),
-            resource_id: cdma_key_id.vault_id(),
-            pfn: self.pfn.unwrap().0,
-            _rsvd: 0,
-        };
-
-        self.ctx
-            .get_bulk_key_req_queue()
-            .send(req)
-            .map_err(|_| AdminErr::IpcSendRequestError)?;
-
-        self.state = AesGcmExtState::WaitKeyResponse;
-
-        Err(AdminErr::Pending)
-    }
-
-    /// Process bulk key response from HSM simplex queue
-    fn process_bulk_key_response(&mut self) -> Result<(), AdminErr> {
-        let mut response = self
-            .ctx
-            .get_bulk_key_resp_queue()
-            .recv()
-            .ok_or(AdminErr::SpuriousIpcMessage)?;
-
-        if response.status != 0 {
-            self.status = AesGcmExtRespErr::AesGcmKeyBlobReadFailed;
-            Err(AdminErr::IpcResponseError)?;
-        }
-
-        self.key = response.key;
-
-        response.key.zeroize();
-
-        Ok(())
-    }
-
-    /// Process AES GCM request queue
-    fn process_request_queue(&mut self, tag: TagId) -> Result<(), AdminErr> {
-        self.process_bulk_key_response()?;
+        // FP placed the 32-byte AES bulk key into SQE[20..51] before
+        // forwarding this request. Install the RAII wipe guard now -- it runs
+        // when the request completes (success or error path) via
+        // update_response_queue, which drops sqe_restore to fire its Drop
+        // impl. The guard zeros SQE[20..51]. FP restores the IV and
+        // ServiceIndicator after Admin signals completion -- Admin never
+        // writes host-visible CQE fields.
+        self.sqe_restore = Some(SqeRestore {
+            addr: self.sqe_address,
+            unaligned_dst_data_len: 0,
+        });
 
         let sqe_ref = self.sqe_ref();
 
@@ -265,10 +245,17 @@ impl<E: AdminEnvTrait> AesGcmExtFsm<E> {
             .allocate(unaligned_data_len)
             .ok_or(AdminErr::NoMemory)?;
 
-        // GCM: Perform AES-GCM tag correction SoftAES operation
+        // GCM: Perform AES-GCM tag correction SoftAES operation. The bulk key
+        // lives in SQE[20..51] (placed there by FP). We borrow it directly as
+        // a slice -- no copy. The borrow is dropped before any mutable access
+        // to the SQE via cqe_ref_mut(). The RAII guard installed in
+        // process_request_queue wipes SQE[20..51] when the request completes;
+        // FP restores the IV and ServiceIndicator after Admin signals completion.
+        let sqe_for_key: &[u8] = mcr_mem_map::mem_addr_to_slice(self.sqe_address, 128);
+        let bulk_key: &[u8] = &sqe_for_key[20..52];
         let corrected_tag = match self.ctx.soft_aes().aes_gcm_tag_correction(
             !is_decrypt,
-            self.key.as_bytes(),
+            bulk_key,
             &sqe_ref.cmd.iv,
             sqe_ref.cmd.unpadded_aad_length as u64,
             input_text_len as u64,
@@ -293,7 +280,12 @@ impl<E: AdminEnvTrait> AesGcmExtFsm<E> {
         // Write corrected_tag on CQE tag field
         let cqe_ref_mut = self.cqe_ref_mut();
         cqe_ref_mut.tag.copy_from_slice(&corrected_tag);
-        cqe_ref_mut.unaligned_dst_data_length = unaligned_data_len as u32;
+
+        // Store the unaligned_dst_data_length on the RAII guard so it gets
+        // written to CQE offset 44-47 after the key wipe in Drop.
+        if let Some(ref mut restore) = self.sqe_restore {
+            restore.unaligned_dst_data_len = unaligned_data_len as u32;
+        }
 
         // Copy output back to DMA buffer if it exists
         if let Some(ref buf) = self.unaligned_data_dma_buf {
@@ -519,6 +511,15 @@ impl<E: AdminEnvTrait> AesGcmExtFsm<E> {
 
     /// Send response to FP core over AES GCM response queue
     fn update_response_queue(&mut self) {
+        // CRITICAL: drop the SQE wipe guard BEFORE sending the response to FP.
+        // Otherwise FP could read the GcmResponseEntry and hand the SQE address
+        // to UCD before SqeRestore::drop runs, leaking key bytes to host via the
+        // CQE DMA. SqeRestore::drop zeros SQE[20..51] then writes the deferred
+        // unaligned_dst_data_length at offset 44-47 (inside the wiped zone).
+        // FP will restore the IV and recompute ServiceIndicator after it sees
+        // the GcmResponseEntry; Admin must not touch host-visible CQE fields.
+        drop(self.sqe_restore.take());
+
         let gcm_resp = AesGcmRespEntry::new()
             .with_sqe_idx(self.sqe_idx)
             .with_status(self.status as u8);
@@ -528,9 +529,6 @@ impl<E: AdminEnvTrait> AesGcmExtFsm<E> {
         });
 
         let _ = self.unaligned_data_dma_buf.take();
-
-        // Zeroize the key after use
-        self.key = [0u32; 8];
 
         // Set to Idle state for next request processing
         self.state = AesGcmExtState::Idle;

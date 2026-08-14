@@ -9,11 +9,16 @@
 #include "cerberus_protocol_master_commands.h"
 #include "cerberus_protocol_optional_commands.h"
 #include "cerberus_protocol_required_commands.h"
+#include "common/buffer_util.h"
 #include "common/certificate.h"
 #include "common/common_math.h"
 #include "common/unused.h"
+#include "manifest/cfm/cfm_flash.h"
 #include "manifest/cfm/cfm_manager.h"
+#include "manifest/pcd/pcd_flash.h"
 #include "manifest/pcd/pcd_manager.h"
+#include "manifest/pfm/pfm_flash.h"
+#include "manifest/pfm/pfm_manager.h"
 
 
 /**
@@ -1417,52 +1422,387 @@ int cerberus_protocol_force_attestation (struct attestation_requester *attestati
 {
 	struct cerberus_protocol_force_attestation *req =
 		(struct cerberus_protocol_force_attestation*) request->data;
-	struct device_manager_pending_action pending;
 	size_t data_length;
 	int status = 0;
 
 	if (attestation == NULL) {
-		return CMD_HANDLER_UNSUPPORTED_COMMAND;
+		return CMD_HANDLER_INVALID_ARGUMENT;
 	}
 
-	if ((attestation->device_mgr == NULL) || (attestation->state == NULL)) {
-		return CMD_HANDLER_INVALID_ARGUMENT;
+	data_length = request->length - sizeof (struct cerberus_protocol_header);
+
+	if (data_length < sizeof (uint8_t)) {
+		return CMD_HANDLER_BAD_LENGTH;
 	}
 
 	if (req->data.mode > DEVICE_MANAGER_FORCE_ATTESTATION_DEVICE_IDS) {
 		return CMD_HANDLER_OUT_OF_RANGE;
 	}
 
-	data_length = request->length - sizeof (struct cerberus_protocol_header);
+	switch (req->data.mode) {
+		case DEVICE_MANAGER_FORCE_ATTESTATION_DEVICE_IDS:
+			if (data_length !=
+				(sizeof (uint8_t) + sizeof (struct device_manager_device_ids_target))) {
+				return CMD_HANDLER_BAD_LENGTH;
+			}
+			break;
 
-	if (req->data.mode == DEVICE_MANAGER_FORCE_ATTESTATION_DEVICE_IDS) {
-		if (data_length != (sizeof (uint8_t) + sizeof (struct device_manager_device_ids_target))) {
-			return CMD_HANDLER_BAD_LENGTH;
-		}
-	}
-	else if (req->data.mode == DEVICE_MANAGER_FORCE_ATTESTATION_COMPONENT_ID) {
-		if (data_length != (sizeof (uint8_t) + sizeof (struct device_manager_component_target))) {
-			return CMD_HANDLER_BAD_LENGTH;
-		}
-	}
-	else {
-		if (data_length != (sizeof (uint8_t))) {
-			return CMD_HANDLER_BAD_LENGTH;
-		}
+		case DEVICE_MANAGER_FORCE_ATTESTATION_COMPONENT_ID:
+			if (data_length !=
+				(sizeof (uint8_t) + sizeof (struct device_manager_component_target))) {
+				return CMD_HANDLER_BAD_LENGTH;
+			}
+			break;
+
+		default:
+			if (data_length != (sizeof (uint8_t))) {
+				return CMD_HANDLER_BAD_LENGTH;
+			}
+			break;
 	}
 
-	pending.type = DEVICE_MANAGER_ACTION_FORCE_ATTESTATION;
-	memcpy (pending.data, &req->data, data_length);
-	pending.data_size = data_length;
-
-	status = device_manager_set_pending_action (attestation->device_mgr, &pending);
+	status = device_manager_set_force_action (attestation->device_mgr, &req->data, data_length,
+		DEVICE_MANAGER_FORCE_ACTION_FORCE_ATTESTATION);
 	if (status != 0) {
 		return status;
 	}
 
-	request->length = sizeof (struct cerberus_protocol_force_attestation_response);
+	cmd_interface_msg_set_message_payload_length (request,
+		sizeof (struct cerberus_protocol_force_attestation_response));
 
 	platform_semaphore_post (&attestation->state->next_action);
+
+	return status;
+}
+
+/**
+ * Process a force attestation info command.
+ *
+ * @param attestation Attestation requester instance to utilize
+ * @param request The force attestation info request to process
+ *
+ * @return Completion status, 0 if success or an error code.
+ */
+int cerberus_protocol_force_attestation_info (struct attestation_requester *attestation,
+	struct cmd_interface_msg *request)
+{
+	struct cerberus_protocol_force_attestation_info_response *response;
+	uint32_t current_action_id;
+	int action_state;
+
+	if (attestation == NULL) {
+		return CMD_HANDLER_UNSUPPORTED_COMMAND;
+	}
+
+	response = (struct cerberus_protocol_force_attestation_info_response*) request->data;
+
+	if (request->length != sizeof (struct cerberus_protocol_header)) {
+		return CMD_HANDLER_BAD_LENGTH;
+	}
+
+	/* Query the force attestation status */
+	action_state = device_manager_get_force_action_state (attestation->device_mgr,
+		&current_action_id);
+
+	if (ROT_IS_ERROR (action_state)) {
+		return action_state;
+	}
+
+	response->status = (uint8_t) action_state;
+
+	/* Use buffer_unaligned_write32 because response points into a uint8_t message buffer
+	 * and the packed struct field may not be naturally aligned for a 32-bit access. */
+	buffer_unaligned_write32 (&response->action_id, current_action_id);
+
+	cmd_interface_msg_set_message_payload_length (request,
+		sizeof (struct cerberus_protocol_force_attestation_info_response));
+
+	return 0;
+}
+
+/**
+ * Context for a manifest reference acquired by cerberus_protocol_get_manifest_flash.
+ */
+struct cerberus_protocol_manifest_ref {
+	const struct manifest_flash *flash;
+	const struct cfm *cfm;
+	const struct pcd *pcd;
+	const struct pfm *pfm;
+};
+
+
+/**
+ * Acquire a manifest flash reference based on manifest type, region, and port.
+ *
+ * @param cfm_mgr CFM manager
+ * @param pcd_mgr PCD manager
+ * @param pfm_mgr Array of PFM managers for all available ports
+ * @param num_pfm_managers Number of PFM managers
+ * @param manifest_type The manifest type identifier
+ * @param region The manifest region (0=active, 1=pending)
+ * @param port The port identifier for PFM manifests
+ * @param ref Output context for the acquired manifest reference. Must be released with
+ *  cerberus_protocol_free_manifest when done.
+ *
+ * @return 0 if successful or an error code.
+ */
+static int cerberus_protocol_get_manifest_flash (const struct cfm_manager *cfm_mgr,
+	const struct pcd_manager *pcd_mgr, const struct pfm_manager *const pfm_mgr[],
+	uint8_t num_pfm_managers, uint8_t manifest_type, uint8_t region, uint8_t port,
+	struct cerberus_protocol_manifest_ref *ref)
+{
+	memset (ref, 0, sizeof (struct cerberus_protocol_manifest_ref));
+
+	switch (manifest_type) {
+		case CERBERUS_PROTOCOL_MANIFEST_CFM:
+			if (cfm_mgr == NULL) {
+				return CMD_HANDLER_UNSUPPORTED_COMMAND;
+			}
+
+			ref->cfm = (region ==
+				0) ? cfm_mgr->get_active_cfm (cfm_mgr) : cfm_mgr->get_pending_cfm (cfm_mgr);
+			if (ref->cfm == NULL) {
+				return (region == 0) ?
+						   MANIFEST_MANAGER_NO_ACTIVE_MANIFEST : MANIFEST_MANAGER_NONE_PENDING;
+			}
+
+			ref->flash = &((const struct cfm_flash*) ref->cfm)->base_flash;
+			break;
+
+		case CERBERUS_PROTOCOL_MANIFEST_PCD:
+			if (pcd_mgr == NULL) {
+				return CMD_HANDLER_UNSUPPORTED_COMMAND;
+			}
+
+			ref->pcd = (region ==
+				0) ? pcd_mgr->get_active_pcd (pcd_mgr) : pcd_mgr->get_pending_pcd (pcd_mgr);
+			if (ref->pcd == NULL) {
+				return (region == 0) ?
+						   MANIFEST_MANAGER_NO_ACTIVE_MANIFEST : MANIFEST_MANAGER_NONE_PENDING;
+			}
+
+			ref->flash = &((const struct pcd_flash*) ref->pcd)->base_flash;
+			break;
+
+		case CERBERUS_PROTOCOL_MANIFEST_PFM:
+			if ((pfm_mgr == NULL) || (num_pfm_managers == 0)) {
+				return CMD_HANDLER_UNSUPPORTED_COMMAND;
+			}
+
+			if (port >= num_pfm_managers) {
+				return CMD_HANDLER_OUT_OF_RANGE;
+			}
+
+			if (pfm_mgr[port] == NULL) {
+				return CMD_HANDLER_UNSUPPORTED_INDEX;
+			}
+
+			ref->pfm = (region ==
+				0) ? pfm_mgr[port]->get_active_pfm (pfm_mgr[port]) :
+					pfm_mgr[port]->get_pending_pfm (pfm_mgr[port]);
+			if (ref->pfm == NULL) {
+				return (region == 0) ?
+						   MANIFEST_MANAGER_NO_ACTIVE_MANIFEST : MANIFEST_MANAGER_NONE_PENDING;
+			}
+
+			ref->flash = &((const struct pfm_flash*) ref->pfm)->base_flash;
+			break;
+
+		default:
+			return CMD_HANDLER_OUT_OF_RANGE;
+	}
+
+	return 0;
+}
+
+/**
+ * Release a manifest reference acquired by cerberus_protocol_get_manifest_flash.
+ *
+ * @param cfm_mgr CFM manager
+ * @param pcd_mgr PCD manager
+ * @param pfm_mgr Array of PFM managers for all available ports
+ * @param port The port identifier used for PFM manifests
+ * @param ref The manifest reference context to release
+ */
+static void cerberus_protocol_free_manifest (const struct cfm_manager *cfm_mgr,
+	const struct pcd_manager *pcd_mgr, const struct pfm_manager *const pfm_mgr[], uint8_t port,
+	const struct cerberus_protocol_manifest_ref *ref)
+{
+	if (ref->cfm != NULL) {
+		cfm_mgr->free_cfm (cfm_mgr, ref->cfm);
+	}
+	else if (ref->pcd != NULL) {
+		pcd_mgr->free_pcd (pcd_mgr, ref->pcd);
+	}
+	else if (ref->pfm != NULL) {
+		pfm_mgr[port]->free_pfm (pfm_mgr[port], ref->pfm);
+	}
+}
+
+/**
+ * Process a get manifest size command.
+ *
+ * @param cfm_mgr CFM manager
+ * @param pcd_mgr PCD manager
+ * @param pfm_mgr Array of PFM managers for all available ports
+ * @param num_pfm_managers Number of PFM managers
+ * @param request The get manifest size request to process
+ *
+ * @return Completion status, 0 if success or an error code.
+ */
+int cerberus_protocol_get_manifest_size (const struct cfm_manager *cfm_mgr,
+	const struct pcd_manager *pcd_mgr, const struct pfm_manager *const pfm_mgr[],
+	uint8_t num_pfm_managers, struct cmd_interface_msg *request)
+{
+	struct cerberus_protocol_get_manifest_size *req =
+		(struct cerberus_protocol_get_manifest_size*) request->data;
+	struct cerberus_protocol_get_manifest_size_response *rsp =
+		(struct cerberus_protocol_get_manifest_size_response*) request->data;
+	struct cerberus_protocol_manifest_ref ref = {0};
+	uint8_t manifest_type;
+	uint8_t region;
+	uint8_t port;
+	uint32_t manifest_id;
+	int manifest_size;
+	int status;
+
+	if (request->length != sizeof (struct cerberus_protocol_get_manifest_size)) {
+		return CMD_HANDLER_BAD_LENGTH;
+	}
+
+	manifest_type = req->manifest_type;
+	region = req->region;
+	port = req->port;
+
+	status = cerberus_protocol_get_manifest_flash (cfm_mgr, pcd_mgr, pfm_mgr, num_pfm_managers,
+		manifest_type, region, port, &ref);
+	if (status != 0) {
+		return status;
+	}
+
+	/* Get the manifest ID */
+	status = manifest_flash_get_id (ref.flash, &manifest_id);
+	if (status != 0) {
+		goto release_manifest;
+	}
+
+	/* Get the manifest size */
+	manifest_size = manifest_flash_get_size (ref.flash);
+	if (ROT_IS_ERROR (manifest_size)) {
+		status = manifest_size;
+		goto release_manifest;
+	}
+
+	if (manifest_size > UINT16_MAX) {
+		status = CMD_HANDLER_OUT_OF_RANGE;
+		goto release_manifest;
+	}
+
+	rsp->manifest_id = manifest_id;
+	rsp->manifest_size = (uint16_t) manifest_size;
+	cmd_interface_msg_set_message_payload_length (request,
+		sizeof (struct cerberus_protocol_get_manifest_size_response));
+
+release_manifest:
+	cerberus_protocol_free_manifest (cfm_mgr, pcd_mgr, pfm_mgr, port, &ref);
+
+	return status;
+}
+
+/**
+ * Process a manifest extract command.
+ *
+ * @param cfm_mgr CFM manager
+ * @param pcd_mgr PCD manager
+ * @param pfm_mgr Array of PFM managers for all available ports
+ * @param num_pfm_managers Number of PFM managers
+ * @param request The manifest extract request to process
+ *
+ * @return Completion status, 0 if success or an error code.
+ */
+int cerberus_protocol_export_manifest (const struct cfm_manager *cfm_mgr,
+	const struct pcd_manager *pcd_mgr, const struct pfm_manager *const pfm_mgr[],
+	uint8_t num_pfm_managers, struct cmd_interface_msg *request)
+{
+	struct cerberus_protocol_export_manifest *req =
+		(struct cerberus_protocol_export_manifest*) request->data;
+	struct cerberus_protocol_export_manifest_response *rsp =
+		(struct cerberus_protocol_export_manifest_response*) request->data;
+	struct cerberus_protocol_manifest_ref ref = {0};
+	uint8_t manifest_type;
+	uint8_t region;
+	uint8_t port;
+	uint16_t offset;
+	uint32_t manifest_id;
+	uint32_t bytes_to_read;
+	size_t rsp_overhead;
+	size_t max_payload;
+	int manifest_size;
+	int status;
+
+	if (request->length != sizeof (struct cerberus_protocol_export_manifest)) {
+		return CMD_HANDLER_BAD_LENGTH;
+	}
+
+	manifest_type = req->manifest_type;
+	region = req->region;
+	port = req->port;
+	offset = req->offset;
+
+	status = cerberus_protocol_get_manifest_flash (cfm_mgr, pcd_mgr, pfm_mgr, num_pfm_managers,
+		manifest_type, region, port, &ref);
+	if (status != 0) {
+		return status;
+	}
+
+	/* Get the manifest ID */
+	status = manifest_flash_get_id (ref.flash, &manifest_id);
+	if (status != 0) {
+		goto release_manifest;
+	}
+
+	/* Get the manifest size */
+	manifest_size = manifest_flash_get_size (ref.flash);
+	if (ROT_IS_ERROR (manifest_size)) {
+		status = manifest_size;
+		goto release_manifest;
+	}
+
+	if (manifest_size > UINT16_MAX) {
+		status = CMD_HANDLER_OUT_OF_RANGE;
+		goto release_manifest;
+	}
+
+	if (offset >= manifest_size) {
+		status = CMD_HANDLER_OUT_OF_RANGE;
+		goto release_manifest;
+	}
+
+	rsp_overhead = sizeof (struct cerberus_protocol_export_manifest_response);
+	if (request->max_response <= rsp_overhead) {
+		status = CMD_HANDLER_BUF_TOO_SMALL;
+		goto release_manifest;
+	}
+
+	max_payload = request->max_response - rsp_overhead;
+
+	bytes_to_read = (uint32_t) manifest_size - offset;
+	if (bytes_to_read > max_payload) {
+		bytes_to_read = max_payload;
+	}
+
+	status = ref.flash->flash->read (ref.flash->flash, ref.flash->addr + offset, rsp->data,
+		bytes_to_read);
+	if (status != 0) {
+		goto release_manifest;
+	}
+
+	rsp->manifest_id = manifest_id;
+	cmd_interface_msg_set_message_payload_length (request,
+		sizeof (struct cerberus_protocol_export_manifest_response) + bytes_to_read);
+
+release_manifest:
+	cerberus_protocol_free_manifest (cfm_mgr, pcd_mgr, pfm_mgr, port, &ref);
 
 	return status;
 }

@@ -3,148 +3,13 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "common/buffer_util.h"
 #include "common/type_cast.h"
 #include "common/unused.h"
-#include "crypto/mbedtls_compat.h"
 #include "ipc/cmd_interface_ipc_hsm.h"
 #include "ipc/ipc_channel.h"
 #include "ipc/ipc_message.h"
 #include "logging/manticore_logging.h"
-#include "mbedtls/pk.h"
-#include "mbedtls/rsa.h"
 
-/**
- * Convert the supported ephemeral key types to key size in bits.
- */
-#define CMD_INTERFACE_IPC_HSM_SUPPORTED_EPHEMERAL_KEY_SIZE(key_type) ((key_type + 2) * 1024)
-
-/**
- * Generate the RSA key context from the DER data and store RSA key component data in little-endian
- * format.
- *
- * @param key_der  A pointer for input RSA key buffer in DER format.
- * @param key_length Input RSA key length in bytes.
- * @param rsa_key_component A pointer to output RSA key components. RSA key will be copied in RAW
- * little-endian format as defined by struct ipc_message_rsa_key_component
- *
- * @return 0 if the request was successfully processed or an error code.
- */
-static int cmd_interface_ipc_hsm_rsa_get_key_context (uint8_t *key_der, size_t key_length,
-	struct ipc_message_rsa_key_component *rsa_key_component)
-{
-	mbedtls_rsa_context *rsa;
-	mbedtls_pk_context pk;
-	int status;
-
-	if ((key_der == NULL) || (rsa_key_component == NULL)) {
-		return CMD_INTERFACE_IPC_HSM_INVALID_ARGUMENT;
-	}
-
-	// Initialize the PK context
-	mbedtls_pk_init (&pk);
-
-#if MBEDTLS_IS_VERSION_3
-	/* Parse the private key in DER format from the buffer.  No RNG is needed for RSA keys, despite
-	 * the API description saying it's required.  If one is desired (or becomes required), an
-	 * rng_engine can be provided to this instance during init and used along with
-	 * rng_mbedtls_rng_callback(). */
-	status = mbedtls_pk_parse_key (&pk, key_der, key_length, NULL, 0, NULL, NULL);
-#else
-	status = mbedtls_pk_parse_key (&pk, key_der, key_length, NULL, 0);
-#endif
-	if (status != 0) {
-		goto err_rsa_free;
-	}
-
-	if (mbedtls_pk_get_type (&pk) != MBEDTLS_PK_RSA) {
-		status = CMD_INTERFACE_IPC_HSM_KEY_NOT_RSA_TYPE;
-		goto err_rsa_free;
-	}
-
-	// Get the RSA context from the PK context
-	rsa = mbedtls_pk_rsa (pk);
-	if (!rsa) {
-		status = CMD_INTERFACE_IPC_HSM_FAILED_TO_CONVERT_RSA_CONTEXT;
-		goto err_rsa_free;
-	}
-
-	/* This function exports core parameters of an RSA key in raw big-endian binary format */
-	status = mbedtls_rsa_export_raw (rsa, rsa_key_component->n, IPC_MESSAGE_RSA_2K_MODULUS_LEN,
-		NULL, 0, NULL, 0, rsa_key_component->d, IPC_MESSAGE_RSA_2K_PRIV_EXPONENT_LEN,
-		rsa_key_component->e, IPC_MESSAGE_RSA_2K_PUB_EXPONENT_LEN);
-	if (status != 0) {
-		goto err_rsa_free;
-	}
-
-	/* Reverse the RSA components buffer and covert in little-endian format */
-	buffer_reverse (rsa_key_component->d, IPC_MESSAGE_RSA_2K_PRIV_EXPONENT_LEN);
-	buffer_reverse (rsa_key_component->n, IPC_MESSAGE_RSA_2K_MODULUS_LEN);
-	buffer_reverse (rsa_key_component->e, IPC_MESSAGE_RSA_2K_PUB_EXPONENT_LEN);
-
-err_rsa_free:
-	mbedtls_pk_free (&pk);
-
-	return status;
-}
-
-/**
- * Process the RSA Key Generation message request received over the IPC Channel.
- *
- * @param cmd_interface_ipc_hsm A pointer to the command interface to process the request.
- * @param request The message containing the request.  This will be updated with an appropriate
- * response.
- *
- * @return 0 if the request was successfully processed or an error code.
- */
-static int cmd_interface_ipc_hsm_rsa_key_gen (
-	const struct cmd_interface_ipc_hsm *cmd_interface_ipc_hsm, struct cmd_interface_msg *request)
-{
-	struct ipc_message_rsa_key_gen_payload *payload;
-	struct ipc_message_rsa_key_component *rsa_key_component;
-	size_t key_length;
-	size_t key_size;
-	int status;
-
-	payload = (struct ipc_message_rsa_key_gen_payload*) request->payload;
-
-	/* Validate the requested key type matches the configured key size */
-	key_size = ephemeral_key_manager_get_key_size (cmd_interface_ipc_hsm->key_manager);
-	if (key_size !=
-		(size_t) CMD_INTERFACE_IPC_HSM_SUPPORTED_EPHEMERAL_KEY_SIZE (payload->key_type)) {
-		return CMD_INTERFACE_IPC_HSM_INVALID_KEY_TYPE;
-	}
-
-	/* Map the soc_address */
-	status = cmd_interface_ipc_hsm->dmb->map_soc_address (cmd_interface_ipc_hsm->dmb,
-		(uint64_t) payload->key_address, sizeof (struct ipc_message_rsa_key_component),
-		HSP_DMB_ACCESS_WRITE, (void**) &rsa_key_component);
-	if (status != 0) {
-		return status;
-	}
-
-	/* Request for the ephemeral key */
-	status = ephemeral_key_manager_get_key (cmd_interface_ipc_hsm->key_manager,
-		payload->function_id, cmd_interface_ipc_hsm->key, cmd_interface_ipc_hsm->key_size,
-		&key_length);
-	if (status != 0) {
-		goto err_unmap_hsm_dmb;
-	}
-
-	memset (rsa_key_component, 0x00, sizeof (*rsa_key_component));
-
-	/* Convert read data in RSA context */
-	status = cmd_interface_ipc_hsm_rsa_get_key_context (cmd_interface_ipc_hsm->key, key_length,
-		rsa_key_component);
-
-	/* Zeroize key buffer after use */
-	buffer_zeroize (cmd_interface_ipc_hsm->key, cmd_interface_ipc_hsm->key_size);
-
-err_unmap_hsm_dmb:
-	cmd_interface_ipc_hsm->dmb->unmap_soc_address (cmd_interface_ipc_hsm->dmb, rsa_key_component);
-
-	return status;
-}
 
 /**
  * Process the Get Certificate Chain Length message request received over the IPC Channel.
@@ -267,12 +132,7 @@ static void cmd_interface_ipc_hsm_process_ipc_message (
 
 	header = (struct ipc_message_header*) request->data;
 
-	/* Validate IPC message opcode */
 	switch (header->opcode)	{
-		case IPC_MESSAGE_OPCODE_RSA_KEY_GEN:
-			status = cmd_interface_ipc_hsm_rsa_key_gen (cmd_interface_ipc_hsm, request);
-			break;
-
 		case IPC_MESSAGE_OPCODE_GET_CERT_CHAIN_LEN:
 			status = cmd_interface_ipc_hsm_get_cert_chain_len (cmd_interface_ipc_hsm, request);
 			break;
@@ -309,20 +169,16 @@ int cmd_interface_ipc_hsm_process_request (const struct cmd_interface *intf,
  *
  * @param cmd_interface_hsm - A pointer to the initialized struct cmd_interface_ipc_hsm
  * @param dmb - A pointer to struct hsp_dmb used to map and unmap memory regions
- * @param key_manager - A pointer to an implementation of struct ephemeral_key_manager
- * @param key A pointer to a buffer to read the key from the flash.
- * @param key_size Size of the key buffer.
  * @param attestation A pointer to an instance of struct struct attestation_responder
  * @param hash Hash engine to use for certificate handling.
  *
  * @return 0 if the request was successfully processed or an error code.
  */
 int cmd_interface_ipc_hsm_init (struct cmd_interface_ipc_hsm *cmd_interface_hsm,
-	const struct hsp_dmb *dmb, const struct ephemeral_key_manager *key_manager, uint8_t *key,
-	size_t key_size, struct attestation_responder *attestation, const struct hash_engine *hash)
+	const struct hsp_dmb *dmb, struct attestation_responder *attestation,
+	const struct hash_engine *hash)
 {
-	if ((cmd_interface_hsm == NULL) || (dmb == NULL) || (key_manager == NULL) || (key == NULL) ||
-		(attestation == NULL) || (hash == NULL)) {
+	if ((cmd_interface_hsm == NULL) || (dmb == NULL) || (attestation == NULL) || (hash == NULL)) {
 		return CMD_INTERFACE_IPC_HSM_INVALID_ARGUMENT;
 	}
 
@@ -331,9 +187,6 @@ int cmd_interface_ipc_hsm_init (struct cmd_interface_ipc_hsm *cmd_interface_hsm,
 	cmd_interface_hsm->base.process_request = cmd_interface_ipc_hsm_process_request;
 
 	cmd_interface_hsm->dmb = dmb;
-	cmd_interface_hsm->key_manager = key_manager;
-	cmd_interface_hsm->key = key;
-	cmd_interface_hsm->key_size = key_size;
 	cmd_interface_hsm->attestation = attestation;
 	cmd_interface_hsm->hash = hash;
 

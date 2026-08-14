@@ -65,6 +65,7 @@ enum {
 	MANTICORE_LOGGING_UNLOCK_INCOMPATIBLE,								/**< The running image does not support unlock. */
 	MANTICORE_LOGGING_GSRAM_ECC_ERROR,									/**< GSRAM ECC error detected. */
 	MANTICORE_LOGGING_ITCM_ECC_ERROR,									/**< ITCM ECC error detected. */
+	MANTICORE_LOGGING_EPHEMERAL_KEY_MONITOR,							/**< Ephemeral key monitor */
 };
 
 /**

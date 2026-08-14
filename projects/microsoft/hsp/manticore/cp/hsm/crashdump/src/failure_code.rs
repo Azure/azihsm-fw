@@ -126,6 +126,18 @@ pub enum FailureCode {
 
     // GDMA Delivery Queue Error
     GdmaDeliveryQueueError = 25,
+
+    // UCD IB DFL Overflow Error
+    UcdIbDflOverflowError = 30,
+
+    // UCD IB Queue Overflow Error
+    UcdIbQueueOverflowError = 31,
+
+    // UCD OB Queue Full Error
+    UcdObQueueFullError = 32,
+
+    // UCD IB Completion Queue Full Error
+    UcdIbCqFullError = 33,
 }
 
 impl From<IRQn> for FailureCode {

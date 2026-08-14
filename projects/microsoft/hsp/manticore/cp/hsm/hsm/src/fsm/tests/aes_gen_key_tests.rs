@@ -305,11 +305,11 @@ fn test_aesbulk256_gen_key() {
         .once()
         .returning(|_| Ok(()));
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
     app_session.expect_id().times(1).returning(Default::default);
@@ -367,11 +367,11 @@ fn test_aesbulk256_gen_key_on_engine_ready() {
         .once()
         .returning(|_| Ok(()));
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
     app_session.expect_id().times(1).returning(Default::default);
@@ -496,11 +496,11 @@ fn test_aesbulk256_gen_key_rollback() {
         .once()
         .returning(|_| Ok(()));
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
     app_session.expect_id().times(1).returning(Default::default);
@@ -568,11 +568,11 @@ fn test_aesbulk256_gen_key_rollback_during_invalid_state() {
         .once()
         .returning(|_| Ok(()));
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
     app_session.expect_id().times(1).returning(Default::default);
@@ -685,6 +685,7 @@ pub(crate) fn gen_aesbulk256_key_cmd() -> HsmResult<AesBulk256Cmd<MockEnv>> {
         Default::default(),
         0,
         channel.unwrap(),
+        SecureByteArray::<32>::new([0u8; 32]),
     ))
 }
 

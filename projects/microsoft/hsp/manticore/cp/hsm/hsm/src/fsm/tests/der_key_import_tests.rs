@@ -443,11 +443,11 @@ fn test_der_key_import_aesbulk256() {
     app_session.expect_id().times(2).returning(Default::default);
     app_session.expect_api_rev().once().returning(api_rev);
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
 
@@ -504,11 +504,11 @@ fn test_der_key_import_aesbulk256_on_engine_ready() {
     app_session.expect_id().times(2).returning(Default::default);
     app_session.expect_api_rev().once().returning(api_rev);
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
 
@@ -637,11 +637,11 @@ fn test_der_key_import_aesbulk256_rollback_on_err() {
     app_session.expect_id().times(2).returning(Default::default);
     app_session.expect_api_rev().once().returning(api_rev);
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
     app_session
@@ -708,11 +708,11 @@ fn test_der_key_import_aesbulk256_rollback_during_invalid_state() {
     app_session.expect_id().times(2).returning(Default::default);
     app_session.expect_api_rev().once().returning(api_rev);
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
     app_session

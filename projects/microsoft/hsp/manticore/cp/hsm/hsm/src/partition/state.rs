@@ -192,6 +192,11 @@ impl<E: HsmEnvTrait> PartState<E> {
             .copy_from_slice(guid);
     }
 
+    /// Arm/disarm Gate 1 (`unwrapping_key_required`) for this PFN; CP-only writer, SP reads.
+    pub fn set_unwrapping_key_required(&self, required: bool) {
+        self.part_persistent_store_ref().unwrapping_key_required = required;
+    }
+
     pub fn vm_launch_guid(&self) -> VmLaunchGuid {
         self.part_persistent_store_ref().vm_launch_guid
     }
@@ -284,8 +289,9 @@ impl<E: HsmEnvTrait> PartState<E> {
         partition_ref.partition_identifier.id.zeroize();
         partition_ref.partition_identifier.priv_key.zeroize();
         partition_ref.partition_identifier.pub_key.zeroize();
-        partition_ref.unwrapping_key_bk_valid = false;
+        partition_ref.unwrapping_key_required = false;
         partition_ref.unwrapping_key_bk.zeroize();
+        partition_ref.unwrapping_key_bk_valid = UnwrappingKeyValidity::Empty as u8;
         partition_ref.masked_bk_boot.len = 0;
         partition_ref.masked_bk_boot.data.zeroize();
         partition_ref.sealed_bk3.len = 0;
@@ -616,7 +622,15 @@ impl<E: HsmEnvTrait> PartStateImpl<E> {
             }
         });
 
-        self.rgs.set_mask(mask)
+        self.rgs.set_mask(mask);
+
+        // Re-arm Gate 1 on warm/IDFU boot since the persisted mask has no replayed `SetRes` IPC.
+        if mask != 0 {
+            let pfn_index: usize = self.pfn.into();
+            self.env
+                .part_persistent_store_ref(pfn_index)
+                .unwrapping_key_required = true;
+        }
     }
 
     fn restore_io_queues(&mut self) {

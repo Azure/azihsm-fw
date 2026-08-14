@@ -235,11 +235,11 @@ fn test_kbkdf_derive_aesbulk256_key() {
         .times(1)
         .returning(|| DdiApiRev { major: 1, minor: 0 });
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
 
@@ -305,11 +305,11 @@ fn test_kbkdf_derive_aesbulk256_key_on_engine_ready() {
         .times(1)
         .returning(|| DdiApiRev { major: 1, minor: 0 });
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
 
@@ -479,11 +479,11 @@ fn test_aesbulk256_rollback_err() {
         .times(1)
         .returning(|| DdiApiRev { major: 1, minor: 0 });
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
 
@@ -559,11 +559,11 @@ fn test_aesbulk256_rollback_during_invalid_state() {
         .times(1)
         .returning(|| DdiApiRev { major: 1, minor: 0 });
     app_session
-        .expect_get_masked_key_len_from_vault()
+        .expect_get_masked_bulk_key_len()
         .once()
         .returning(|_, _, _| Ok(32));
     app_session
-        .expect_mask_key_from_vault()
+        .expect_mask_bulk_key()
         .once()
         .returning(|_, _, _, _| Ok(()));
 
@@ -744,6 +744,7 @@ fn gen_aesbulk256_key_cmd() -> HsmResult<AesBulk256Cmd<MockEnv>> {
         Default::default(),
         key_id(),
         channel.unwrap(),
+        SecureByteArray::<32>::new([0u8; 32]),
     ))
 }
 

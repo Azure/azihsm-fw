@@ -85,6 +85,15 @@ const uint8_t DICE_OID_BRAGA[] = {
 };
 
 /**
+ * OID for Braga_R.
+ *
+ * 1.3.6.1.4.1.311.102.1.6.1
+ */
+const uint8_t DICE_OID_BRAGA_R[] = {
+	0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x66, 0x01, 0x06, 0x01
+};
+
+/**
  * OID for Tahoe.
  *
  * 1.3.6.1.4.1.311.102.1.12.1

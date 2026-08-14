@@ -45,6 +45,10 @@ extern const uint8_t DICE_OID_KINGSGATE[];
 extern const uint8_t DICE_OID_BRAGA[];
 #define	DICE_OID_BRAGA_LENGTH		11
 
+/* 1.3.6.1.4.1.311.102.1.6.1 */
+extern const uint8_t DICE_OID_BRAGA_R[];
+#define	DICE_OID_BRAGA_R_LENGTH		11
+
 /* 1.3.6.1.4.1.311.102.1.12.1 */
 extern const uint8_t DICE_OID_TAHOE[];
 #define	DICE_OID_TAHOE_LENGTH		11

@@ -52,6 +52,7 @@ impl<E: HsmEnvTrait> HsmCmdTrait<E> for FlushSessionCmd<E> {
             (State::Init, HsmFsmEvent::StartCmd) => self.on_start(tag),
             (State::WaitForResource, HsmFsmEvent::ResourceReady(_res)) => self.on_engine_ready(tag),
             (State::WaitForCmd, HsmFsmEvent::FpToHsmIpcResponse) => self.on_cmd_complete(),
+            (_, HsmFsmEvent::CheckAlive) => Err(HsmErr::Pending),
             (State::Final, _) => Err(HsmErr::InvalidState),
             (_, _) => {
                 error!(

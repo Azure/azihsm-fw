@@ -64,9 +64,6 @@ pub(crate) enum HsmFsmEvent {
     /// FP to HSM IPC request
     FpToHsmIpcRequest,
 
-    /// Get Bulk Key Request from Admin via simplex queue
-    GetBulkKeyRequest,
-
     /// Unknown event
     Unknown,
 }
@@ -93,7 +90,6 @@ impl From<HsmFsmEvent> for u32 {
             HsmFsmEvent::ResourceCleanup(_res_id, _idx) => 16,
             HsmFsmEvent::InitPartition(_ipc_message) => 17,
             HsmFsmEvent::FpToHsmIpcResponse => 18,
-            HsmFsmEvent::GetBulkKeyRequest => 19,
             HsmFsmEvent::Unknown => 0xFFFFFFFF,
         }
     }

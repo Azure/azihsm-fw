@@ -181,14 +181,6 @@ impl<E: AdminEnvTrait> AdminFsmContext<E> {
         self.env.aes_gcm_resp_queue()
     }
 
-    pub fn get_bulk_key_req_queue(&self) -> &E::GetBulkKeyReqQueue {
-        self.env.get_bulk_key_req_queue()
-    }
-
-    pub fn get_bulk_key_resp_queue(&self) -> &E::GetBulkKeyRespQueue {
-        self.env.get_bulk_key_resp_queue()
-    }
-
     pub fn rng(&self) -> &E::Rng {
         self.env.rng()
     }

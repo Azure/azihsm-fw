@@ -64,6 +64,7 @@ pub(crate) struct AdminEventHandler<E: AdminEnvTrait + 'static> {
     admin_to_fp_ipc_channel: E::IpcChannel,
     hsm_ipc_channel: E::IpcChannel,
     admin_to_hsp_ipc_channel: E::IpcChannel,
+    soft_event_round_robin: u8,
 }
 
 impl<E: AdminEnvTrait> AdminEventHandler<E> {
@@ -149,6 +150,7 @@ impl<E: AdminEnvTrait> AdminEventHandler<E> {
             tdisp_int_tag: tdisp_int_tag.unwrap(),
             stop_interface_tag: stop_interface_tag.unwrap(),
             aes_gcm_ext_tag: aes_gcm_ext_tag.unwrap(),
+            soft_event_round_robin: 0,
         }
     }
 
@@ -189,7 +191,6 @@ impl<E: AdminEnvTrait> AdminEventHandler<E> {
             AdminFsmEvent::NegativeSelfTest(_) => unreachable!(),
             AdminFsmEvent::TdispInt(_) => self.on_tdisp_interrupt_event(event),
             AdminFsmEvent::AesGcmExtRequest => self.on_aes_gcm_ext_request(event),
-            AdminFsmEvent::GetBulkKeyResponse => self.on_aes_gcm_ext_request(event),
             AdminFsmEvent::HspToAdminStopInterfaceIpcRequest => {
                 self.on_hsp_to_admin_stop_interface_ipc_request()
             }
@@ -199,19 +200,51 @@ impl<E: AdminEnvTrait> AdminEventHandler<E> {
         }
     }
 
-    pub fn check_soft_events(&self) -> Option<AdminFsmEvent> {
+    /// Check for pending soft events with priority and round-robin fairness.
+    /// IoCancellationComplete and SelfTestResponse are highest priority.
+    /// Lower-priority events use round-robin to prevent starvation.
+    pub fn check_soft_events(&mut self) -> Option<AdminFsmEvent> {
         if !self.ctx.queue_delete_notification().is_empty() {
             Some(AdminFsmEvent::IoCancellationComplete)
         } else if !self.ctx.self_test_resp().is_empty() {
             Some(AdminFsmEvent::SelfTestResponse)
-        } else if !self.ctx.soft_aes_req().is_empty() {
-            Some(AdminFsmEvent::SoftAesRequest)
-        } else if !self.ctx.get_bulk_key_resp_queue().is_empty() {
-            Some(AdminFsmEvent::GetBulkKeyResponse)
-        } else if !self.ctx.aes_gcm_req_queue().is_empty() {
-            Some(AdminFsmEvent::AesGcmExtRequest)
         } else {
-            None
+            // Round-robin for lower-priority soft events.
+            //
+            // Policy: when both queues have work, dispatch GCM 5× per 1 SoftAes.
+            // Rationale: GCM tag-correction is cheap per event; SoftAes is expensive
+            // per event. A 5:1 dispatch ratio drains GCM queue depth fast while
+            // SoftAes still drains at >= producer rate because each dispatch covers
+            // substantial work. Both paths share the same 6s host timeout.
+            const GCM_WEIGHT: u8 = 5;
+            const KWP_WEIGHT: u8 = 1;
+            const CYCLE: u8 = GCM_WEIGHT + KWP_WEIGHT;
+
+            let gcm_req_queue_empty = self.ctx.aes_gcm_req_queue().is_empty();
+            let soft_aes_req_empty = self.ctx.soft_aes_req().is_empty();
+
+            match (gcm_req_queue_empty, soft_aes_req_empty) {
+                (false, false) => {
+                    // Both have work — apply weighted RR.
+                    // Slots [0..GCM_WEIGHT) in the cycle dispatch GCM; the last
+                    // slot dispatches SoftAes.
+                    let event = if self.soft_event_round_robin < GCM_WEIGHT {
+                        AdminFsmEvent::AesGcmExtRequest
+                    } else {
+                        AdminFsmEvent::SoftAesRequest
+                    };
+                    // Advance and wrap at the cycle boundary. Counter is always in
+                    // [0, CYCLE), so the comparison is direct (no mod at read),
+                    // there is no u8 overflow risk, and no parity drift across wraps.
+                    // Tick the counter ONLY when we actually arbitrate, so parity
+                    // tracks dispatch history, not poll-loop calls into this function.
+                    self.soft_event_round_robin = (self.soft_event_round_robin + 1) % CYCLE;
+                    Some(event)
+                }
+                (true, false) => Some(AdminFsmEvent::SoftAesRequest),
+                (false, true) => Some(AdminFsmEvent::AesGcmExtRequest),
+                (true, true) => None,
+            }
         }
     }
 
@@ -781,7 +814,6 @@ mod tests {
     use mcr_self_test::SelfTestRespPacket;
     use mcr_types::AesGcmReqEntry;
     use mcr_types::AesGcmRespEntry;
-    use mcr_types::GetBulkKeyRespEntry;
     use mcr_types::PcieFunction;
     use mcr_types::QueueDeleteResponse;
     use mcr_types::SoftAesOffloadReq;
@@ -1428,6 +1460,16 @@ mod tests {
                         .return_const(self_test_resp);
 
                     if !config.no_empty_self_test_response {
+                        let mut aes_gcm_req_queue: MockSimplexPipe<AesGcmReqEntry> =
+                            MockSimplexPipe::new();
+                        aes_gcm_req_queue
+                            .expect_is_empty()
+                            .once()
+                            .return_const(!config.non_empty_aes_gcm_request);
+                        env.expect_aes_gcm_req_queue()
+                            .once()
+                            .return_const(aes_gcm_req_queue);
+
                         let mut aes_unwrap_request: MockSimplexPipe<SoftAesOffloadReq> =
                             MockSimplexPipe::new();
                         aes_unwrap_request
@@ -1439,32 +1481,8 @@ mod tests {
                             .return_const(aes_unwrap_request);
                     }
                 }
-
-                if !config.non_empty_aes_unwrap_request
-                    && !config.non_empty_queue_delete_notification
-                    && !config.no_empty_self_test_response
-                {
-                    let mut bulk_key_resp_queue: MockSimplexPipe<GetBulkKeyRespEntry> =
-                        MockSimplexPipe::new();
-                    bulk_key_resp_queue
-                        .expect_is_empty()
-                        .once()
-                        .return_const(true);
-                    env.expect_get_bulk_key_resp_queue()
-                        .once()
-                        .return_const(bulk_key_resp_queue);
-
-                    let mut aes_gcm_req_queue: MockSimplexPipe<AesGcmReqEntry> =
-                        MockSimplexPipe::new();
-                    aes_gcm_req_queue
-                        .expect_is_empty()
-                        .once()
-                        .return_const(!config.non_empty_aes_gcm_request);
-                    env.expect_aes_gcm_req_queue()
-                        .once()
-                        .return_const(aes_gcm_req_queue);
-                }
             }
+
             if config.timer_elapsed {
                 env.expect_update_core_liveliness()
                     .times(1)
@@ -2245,7 +2263,7 @@ mod tests {
         };
         let env = handler_test_env_hsp_req_ipc(config);
 
-        let handler = AdminEventHandler::new(env, AdminFsmEventRecorder::default());
+        let mut handler = AdminEventHandler::new(env, AdminFsmEventRecorder::default());
 
         assert!(handler.check_soft_events().is_none());
     }
@@ -2259,7 +2277,7 @@ mod tests {
         };
         let env = handler_test_env_hsp_req_ipc(config);
 
-        let handler = AdminEventHandler::new(env, AdminFsmEventRecorder::default());
+        let mut handler = AdminEventHandler::new(env, AdminFsmEventRecorder::default());
 
         assert!(handler.check_soft_events() == Some(AdminFsmEvent::IoCancellationComplete));
     }
@@ -2273,7 +2291,7 @@ mod tests {
         };
         let env = handler_test_env_hsp_req_ipc(config);
 
-        let handler = AdminEventHandler::new(env, AdminFsmEventRecorder::default());
+        let mut handler = AdminEventHandler::new(env, AdminFsmEventRecorder::default());
 
         assert!(handler.check_soft_events() == Some(AdminFsmEvent::SoftAesRequest));
     }
@@ -2360,7 +2378,7 @@ mod tests {
         };
         let env = handler_test_env_hsp_req_ipc(config);
 
-        let handler = AdminEventHandler::new(env, AdminFsmEventRecorder::default());
+        let mut handler = AdminEventHandler::new(env, AdminFsmEventRecorder::default());
 
         assert!(handler.check_soft_events() == Some(AdminFsmEvent::AesGcmExtRequest));
     }

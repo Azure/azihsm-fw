@@ -114,7 +114,12 @@ impl<'a> AesEncDecIn<'a> {
 pub(crate) enum AesBulk256Cmd<E: HsmEnvTrait + 'static> {
     CloseAppSession(SessionId, FpIpcChannelRef<E>),
     DeleteKey(AesBulk256KeyId, KeyId, FpIpcChannelRef<E>),
-    DerKeyImport(AesBulk256KeyId, KeyId, FpIpcChannelRef<E>),
+    DerKeyImport(
+        AesBulk256KeyId,
+        KeyId,
+        FpIpcChannelRef<E>,
+        SecureByteArray<32>,
+    ),
 }
 
 impl<E: HsmEnvTrait> UserSession<E> {
@@ -369,7 +374,7 @@ impl<E: HsmEnvTrait> UserSession<E> {
         // Step 3: Send the table index, key slot index and along with other
         //    parameters to FP via IPC
         let session_only = attributes.common.flags.session();
-        let msg: IpcMessageKeyUpdate = IpcMessageKeyUpdate {
+        let mut msg = IpcMessageKeyUpdate {
             info: KeyUpdateInfo {
                 key_index: cdma_key_id.key_index(),
                 resource_id: cdma_key_id.vault_id(),
@@ -380,9 +385,11 @@ impl<E: HsmEnvTrait> UserSession<E> {
                 flag: AesKeyFlag::new()
                     .with_session_only(session_only)
                     .with_key_type(self.aes_bulk_key_type(key_type)?),
+                ..Default::default()
             },
             ..Default::default()
         };
+        msg.info.key_data[..der.len()].copy_from_slice(der);
 
         channel_ref
             .map(|c| c.send_request(tag, msg.encode()))
@@ -394,10 +401,14 @@ impl<E: HsmEnvTrait> UserSession<E> {
 
         // Step 4. implemented in end_import_der_aesbulk256_key_inner()
 
+        let mut raw_key = SecureByteArray::<32>::new([0u8; 32]);
+        raw_key.as_mut_slice()[..der.len()].copy_from_slice(der);
+
         Ok(AesBulk256Cmd::DerKeyImport(
             cdma_key_id,
             key_id.id(),
             channel_ref,
+            raw_key,
         ))
     }
 
@@ -407,7 +418,7 @@ impl<E: HsmEnvTrait> UserSession<E> {
         &self,
         op: &AesBulk256Cmd<E>,
     ) -> HsmResult<()> {
-        let AesBulk256Cmd::DerKeyImport(cdma_key_id, key_id, ref channel_ref) = *op else {
+        let AesBulk256Cmd::DerKeyImport(cdma_key_id, key_id, ref channel_ref, _) = *op else {
             return Err(HsmErr::AesBulk256InvalidParameter);
         };
 
@@ -435,19 +446,14 @@ impl<E: HsmEnvTrait> UserSession<E> {
         }
     }
 
+    // Deletes only the CDMA bitmap slot and HSM vault entry.
+    // The actual key in the CDMA vault is deleted by FP.
     fn undo_aesbulk256_key_import(
         &self,
         key_id: KeyId,
         cdma_key_id: AesBulk256KeyId,
     ) -> HsmResult<()> {
-        self.state
-            .cdma_vault()
-            .delete_key(cdma_key_id)
-            .or_else(|err| {
-                self.delete_key(key_id)?;
-                Err(err)
-            })?;
-
+        self.state.cdma_vault().delete_key(cdma_key_id)?;
         self.delete_key(key_id)?;
 
         Ok(())
@@ -507,6 +513,7 @@ impl<E: HsmEnvTrait> UserSession<E> {
                 session_id: self.id(),
                 app_id: self.app_vault_id(),
                 flag: AesKeyFlag::new().with_session_only(session_only),
+                ..Default::default()
             },
             ..Default::default()
         };
@@ -547,8 +554,6 @@ impl<E: HsmEnvTrait> UserSession<E> {
                 Err(HsmErr::IpcResponseError)?
             }
 
-            // Step 2: If we receive a success response, delete the keys from
-            // HSM/CDMA vault
             let _ = self.enable_key(key_id);
             self.undo_aesbulk256_key_import(key_id, cdma_key_id)?;
 
@@ -609,7 +614,7 @@ impl<E: HsmEnvTrait> UserSession<E> {
         pfn: PcieFunction,
         op: &AesBulk256Cmd<E>,
     ) -> HsmResult<()> {
-        let AesBulk256Cmd::DerKeyImport(cdma_key_id, key_id, ref channel_ref) = *op else {
+        let AesBulk256Cmd::DerKeyImport(cdma_key_id, key_id, ref channel_ref, _) = *op else {
             return Err(HsmErr::AesBulk256InvalidParameter);
         };
 
@@ -631,6 +636,7 @@ impl<E: HsmEnvTrait> UserSession<E> {
                 session_id: self.id(),
                 app_id: self.app_vault_id(),
                 flag: AesKeyFlag::new().with_session_only(session_only),
+                ..Default::default()
             },
             ..Default::default()
         };
@@ -649,7 +655,7 @@ impl<E: HsmEnvTrait> UserSession<E> {
 
     /// Receive IPC from FP and finish the delete key operation for AES Bulk 256 due to rollback
     pub(super) fn end_rollback_aesbulk256_key_inner(&self, op: &AesBulk256Cmd<E>) -> HsmResult<()> {
-        let AesBulk256Cmd::DerKeyImport(cdma_key_id, key_id, ref channel_ref) = *op else {
+        let AesBulk256Cmd::DerKeyImport(cdma_key_id, key_id, ref channel_ref, _) = *op else {
             return Err(HsmErr::AesBulk256InvalidParameter);
         };
 

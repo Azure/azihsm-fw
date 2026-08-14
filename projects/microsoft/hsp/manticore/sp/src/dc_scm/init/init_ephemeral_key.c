@@ -1,4 +1,5 @@
-#include <memory.h>
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 #include "hsp_top.h"
 #include "init_crypto.h"
 #include "init_ephemeral_key.h"
@@ -17,8 +18,10 @@
 #include "firmware/manticore_device_keys.h"
 #include "flash/flash_store_contiguous_blocks_key_wrap_static.h"
 #include "keystore/ephemeral_key_manager_static.h"
+#include "keystore/ephemeral_key_monitor.h"
 #include "keystore/key_cache_flash_static.h"
 #include "splibs/inc/spcryptotypes.h"
+
 
 
 /**
@@ -37,10 +40,21 @@
 #define EPHEMERAL_KEY_MANAGER_TASK_INTERVAL_MS		10000
 
 /**
+ * Ephemeral key manager delay in ms before the next execution while the key cache is not full.  A
+ * short, non-zero delay (instead of rescheduling immediately) leaves an idle window between key
+ * generations for other operations to run.
+ */
+#define EPHEMERAL_KEY_MANAGER_KEY_GEN_DELAY_MS		1000
+
+/**
  * Supported RSA Ephemeral key bits length
  */
 #define RSA_EPHEMERAL_KEY_SIZE						2048
 
+/**
+ * @brief The maximum size of a 2K RSA key in DER format.
+ */
+#define RSA_2K_DER_KEY_MAX_SIZE						1270
 
 /**
  * RSA Ephemeral Key Generation
@@ -104,18 +118,23 @@ static uint8_t key_cache_flash_requestor_credit[RSA_KEY_CACHE_FLASH_MAX_REQUESTO
 static struct key_cache_flash_state rsa_key_cache_flash_state;
 
 /**
- * Initialize the key cache flash
+ * Working buffer for the producer (`ephemeral_key_manager`) to receive a freshly generated
+ * DER-encoded RSA-2K private key from `mbedtls`.  Sized via the wrapped-length macro so the
+ * buffer has room for the DER blob plus any AES-key-wrap overhead the producer reuses it for.
+ * The DER blob is persisted as-is; the runtime DER -> PKA little-endian conversion happens later
+ * in the `ephemeral_key_monitor` when a slot is refilled.
  */
-static const struct key_cache_flash rsa_key_cache_flash =
+static uint8_t key_buffer[AES_KEY_WRAP_INTERFACE_WRAPPED_LENGTH (RSA_2K_DER_KEY_MAX_SIZE)];
+
+/**
+ * Flash-backed key cache.  Exposed (non-static) so the ephemeral key monitor can refill GSRAM
+ * slots directly without going through the producer.
+ */
+const struct key_cache_flash rsa_key_cache_flash =
 	key_cache_flash_static_init (&rsa_key_cache_flash_state, &key_cache_flash_store.base.base,
 	key_cache_flash_key_info, ARRAY_SIZE (key_cache_flash_key_info),
 	key_cache_flash_requestor_credit, ARRAY_SIZE (key_cache_flash_requestor_credit),
 	RSA_KEY_CACHE_FLASH_MAX_CREDIT);
-
-/**
- * Key buffer to read the ephemeral key
- */
-static uint8_t key_buffer[AES_KEY_WRAP_INTERFACE_WRAPPED_LENGTH (RSA_2K_DER_KEY_MAX_SIZE)];
 
 /**
  * Ephemeral key manager state
@@ -127,7 +146,8 @@ static struct ephemeral_key_manager_state rsa_ephemeral_key_manager_state;
  */
 const struct ephemeral_key_manager rsa_ephemeral_key_manager =
 	ephemeral_key_manager_static_init (&rsa_ephemeral_key_manager_state, &rsa_key_cache_flash.base,
-	&rsa_key_gen.base, EPHEMERAL_KEY_MANAGER_TASK_INTERVAL_MS, RSA_EPHEMERAL_KEY_SIZE, key_buffer,
+	&rsa_key_gen.base, EPHEMERAL_KEY_MANAGER_TASK_INTERVAL_MS,
+	EPHEMERAL_KEY_MANAGER_KEY_GEN_DELAY_MS, RSA_EPHEMERAL_KEY_SIZE, key_buffer,
 	ARRAY_SIZE (key_buffer));
 
 /**
@@ -179,7 +199,8 @@ int initialize_ephemeral_key_handler ()
 		return status;
 	}
 
-	/* Initialize encrypted contiguous flash store states */
+	/* Initialize encrypted contiguous flash store states.  The cache persists DER-encoded keys, so
+	 * the store is sized to the maximum DER blob length. */
 	status = flash_store_contiguous_blocks_key_wrap_init_state (&key_cache_flash_store,
 		RSA_2K_DER_KEY_MAX_SIZE);
 	if (status != 0) {

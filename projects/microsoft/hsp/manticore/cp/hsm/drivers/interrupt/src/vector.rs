@@ -236,8 +236,10 @@ static __INTERRUPTS: [Vector; 177] = [
     Vector {
         handler: ucd_ibcq_irq,
     },
-    // 99 - Reserved
-    Vector { reserved: 0 },
+    // 99 - UCD Inbound Queue Error Interrupt
+    Vector {
+        handler: ucd_ib_err_irq,
+    },
     // 100 - Reserved
     Vector { reserved: 0 },
     // 101 - Reserved
@@ -254,8 +256,10 @@ static __INTERRUPTS: [Vector; 177] = [
     Vector { reserved: 0 },
     // 105 - Reserved
     Vector { reserved: 0 },
-    // 106 - Reserved
-    Vector { reserved: 0 },
+    // 106 - UCD Outbound Queue Error Interrupt
+    Vector {
+        handler: ucd_ob_err_irq,
+    },
     // 107 - Reserved
     Vector { reserved: 0 },
     // 108 - Reserved

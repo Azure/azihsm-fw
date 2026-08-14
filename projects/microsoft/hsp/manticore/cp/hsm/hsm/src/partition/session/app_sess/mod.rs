@@ -1334,22 +1334,14 @@ impl<E: HsmEnvTrait> HsmUserSession for UserSession<E> {
         Ok((imported_key.id(), ddi_key_type))
     }
 
-    /// Begin getting the unwrapping key
-    fn begin_get_unwrapping_key(
+    /// Get the unwrapping key
+    fn get_unwrapping_key(
         &self,
         tag: TagId,
         key_id: Option<KeyId>,
         pfn: PcieFunction,
-    ) -> HsmResult<GetUnwrappingKeyCtx<Self::Env>> {
-        self.begin_get_unwrapping_key_inner(tag, key_id, pfn)
-    }
-
-    /// End the process to get unwrapping key
-    fn end_get_unwrapping_key(
-        &self,
-        ctx: &GetUnwrappingKeyCtx<Self::Env>,
-    ) -> HsmResult<GetUnwrappingKeyOut> {
-        self.end_get_unwrapping_key_inner(ctx)
+    ) -> HsmResult<GetUnwrappingKeyCtx> {
+        self.get_unwrapping_key_inner(tag, key_id, pfn)
     }
 
     /// Begin computing CRT parameters (n1q, n2p) for the RSA CRT private key.
@@ -1637,16 +1629,9 @@ impl<E: HsmEnvTrait> HsmUserSession for UserSession<E> {
         let key_blob = vault_key.blob()?;
 
         if entry_class.is_bulk_key() {
-            // Use the key blob as the key id
-            let cdma_key_id = AesBulk256KeyId::from(u16::from_le_bytes(
-                key_blob[..2]
-                    .try_into()
-                    .map_err(|_| HsmErr::InvalidKeyIndex)?,
-            ));
-
-            // Get the key from CDMA vault
-            let cdma_key = self.state.cdma_vault().get_key_entry(cdma_key_id)?;
-            self.get_masked_key_len(metadata.len(), self.aescbc256_enc_data_len(cdma_key.len()))
+            // Bulk keys must use get_masked_bulk_key_len() with raw key length.
+            // CP must never read from the CDMA vault.
+            Err(HsmErr::InvalidKeyType)
         } else if entry_class == EntryClass::Ecc {
             // Note ECC is a special case that we mask both the private key and public key
             self.get_masked_key_len(
@@ -1658,6 +1643,18 @@ impl<E: HsmEnvTrait> HsmUserSession for UserSession<E> {
         } else {
             self.get_masked_key_len(metadata.len(), self.aescbc256_enc_data_len(key_blob.len()))
         }
+    }
+
+    /// Get the masked key length for a bulk key using the raw key length directly,
+    /// without reading the CDMA vault.
+    fn get_masked_bulk_key_len(
+        &self,
+        key_label: &[u8],
+        key_id: KeyId,
+        raw_key_len: usize,
+    ) -> HsmResult<usize> {
+        let metadata = self.get_metadata_from_vault(key_label, key_id)?;
+        self.get_masked_key_len(metadata.len(), self.aescbc256_enc_data_len(raw_key_len))
     }
 
     /// Get the length of the masked key based on the length of metadata and length of the encrypted key
@@ -1690,20 +1687,10 @@ impl<E: HsmEnvTrait> HsmUserSession for UserSession<E> {
         let mut padded_buffer;
 
         if entry_class.is_bulk_key() {
-            // Use the key blob as the key id
-            let cdma_key_id = AesBulk256KeyId::from(u16::from_le_bytes(
-                key_blob[..2]
-                    .try_into()
-                    .map_err(|_| HsmErr::InvalidKeyIndex)?,
-            ));
-
-            // Get the key from CDMA vault
-            let cdma_key = self.state.cdma_vault().get_key_entry(cdma_key_id)?;
-            key_len = cdma_key.len();
-
-            let enc_data_len = self.aescbc256_enc_data_len(key_len);
-            padded_buffer = self.dma_alloc(enc_data_len)?;
-            padded_buffer.as_ref_mut()[..key_len].copy_from_slice(cdma_key.slice());
+            // Bulk keys must be masked via mask_bulk_key() with the raw key
+            // from the AesBulk256Cmd::DerKeyImport SecureByteArray. CP must
+            // never read from the CDMA vault.
+            return Err(HsmErr::InvalidKeyType);
         } else if entry_class == EntryClass::Ecc {
             let pub_data_len = pub_data.map(|data| data.len()).unwrap_or_default();
             key_len = key_blob.len() + pub_data_len;
@@ -1723,6 +1710,35 @@ impl<E: HsmEnvTrait> HsmUserSession for UserSession<E> {
 
             padded_buffer.as_ref_mut()[..key_len].copy_from_slice(key_blob.as_ref());
         }
+
+        let masking_key = if vault_key.attributes()?.common.flags.session() {
+            self.get_session_masking_key()
+        } else {
+            self.get_partition_masking_key()
+        }?;
+
+        self.mask_key(
+            metadata.as_ref(),
+            masking_key.slice(),
+            padded_buffer.as_ref(),
+            masked_key,
+        )
+    }
+
+    /// Mask a bulk key from raw key bytes without reading the CDMA vault.
+    fn mask_bulk_key(
+        &self,
+        key_label: &[u8],
+        key_id: KeyId,
+        raw_key: &[u8],
+        masked_key: &mut [u8],
+    ) -> HsmResult<()> {
+        let metadata = self.get_metadata_from_vault(key_label, key_id)?;
+        let vault_key = self.state.vault().key_unchecked(key_id);
+
+        let enc_data_len = self.aescbc256_enc_data_len(raw_key.len());
+        let mut padded_buffer = self.dma_alloc(enc_data_len)?;
+        padded_buffer.as_ref_mut()[..raw_key.len()].copy_from_slice(raw_key);
 
         let masking_key = if vault_key.attributes()?.common.flags.session() {
             self.get_session_masking_key()

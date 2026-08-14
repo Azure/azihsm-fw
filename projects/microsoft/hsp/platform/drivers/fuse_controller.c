@@ -75,7 +75,11 @@ static const struct fuse_controller_fuse_map fuse_map = {
 
 
 /**
- * Send a command to the fuse controller.
+ * Send a command to the fuse controller and, optionally, latch the contents of the Data register
+ * into a caller-provided buffer while the controller mutex is still held.  Latching the Data
+ * register inside the locked region is required for READ_DATA commands: the Data register is
+ * shared with PROGRAM_DATA / BLANK_CHECK and would otherwise be overwritten by a concurrent
+ * caller between the unlock here and the caller's read of the register.
  *
  * @param fuses The fuse controller executing the command.
  * @param command Command code to execute.
@@ -84,13 +88,18 @@ static const struct fuse_controller_fuse_map fuse_map = {
  * @param data Data to program to the fuse word, if necessary.
  * @param words The number of fuse words to program.  In most cases this can only be 1, but some
  * fuses, like SOCID, are not word addressable and need to be programmed as a block.
+ * @param read_data Optional output buffer to receive the contents of the Data register after the
+ * command completes successfully.  May be NULL when no readback is required.
+ * @param read_words Number of 32-bit words to copy from the Data register into read_data.
+ * Ignored if read_data is NULL.
  *
  * @return 0 if the fuse operation was completed successfully, FUSE_CONTROLLER_NOT_BLANK if the
- * blank check fail has been set, or a negative error code representing the error bits from the fuse
- * controller status register.
+ * blank check fail has been set, or a negative error code representing the error bits from the
+ * fuse controller status register.
  */
-int fuse_controller_execute_command (const struct fuse_controller *fuses,
-	enum fuse_controller_cmd command, uint16_t address, const uint32_t *data, size_t words)
+static int fuse_controller_execute_command_locked (const struct fuse_controller *fuses,
+	enum fuse_controller_cmd command, uint16_t address, const uint32_t *data, size_t words,
+	uint32_t *read_data, size_t read_words)
 {
 	size_t i;
 	uint32_t status;
@@ -115,6 +124,16 @@ int fuse_controller_execute_command (const struct fuse_controller *fuses,
 		status = fuses->regs->Command_Status;
 	} while (status & GFC_REGS_COMMAND_STATUS_BUSY_FIELD_MASK);
 
+	/* Latch the Data register before releasing the lock so that a concurrent caller cannot
+	 * overwrite it (and the underlying HW state) before we copy the result. */
+	if ((read_data != NULL) &&
+		(status & GFC_REGS_COMMAND_STATUS_CMD_SUCCESS_FIELD_MASK) &&
+		!(status & GFC_REGS_COMMAND_STATUS_BLANK_CHECK_FAIL_FIELD_MASK)) {
+		for (i = 0; i < read_words; i++) {
+			read_data[i] = fuses->regs->Data.Data[i];
+		}
+	}
+
 	platform_mutex_unlock (&fuses->state->lock);
 
 	if (status & GFC_REGS_COMMAND_STATUS_CMD_SUCCESS_FIELD_MASK) {
@@ -130,6 +149,27 @@ int fuse_controller_execute_command (const struct fuse_controller *fuses,
 }
 
 /**
+ * Send a command to the fuse controller.
+ *
+ * @param fuses The fuse controller executing the command.
+ * @param command Command code to execute.
+ * @param address The address of the first fuse word for the command, if necessary.  This must be
+ * 32-bit aligned, but will not be verified in this function.
+ * @param data Data to program to the fuse word, if necessary.
+ * @param words The number of fuse words to program.  In most cases this can only be 1, but some
+ * fuses, like SOCID, are not word addressable and need to be programmed as a block.
+ *
+ * @return 0 if the fuse operation was completed successfully, FUSE_CONTROLLER_NOT_BLANK if the
+ * blank check fail has been set, or a negative error code representing the error bits from the fuse
+ * controller status register.
+ */
+int fuse_controller_execute_command (const struct fuse_controller *fuses,
+	enum fuse_controller_cmd command, uint16_t address, const uint32_t *data, size_t words)
+{
+	return fuse_controller_execute_command_locked (fuses, command, address, data, words, NULL, 0);
+}
+
+/**
  * Send a command to the fuse controller to read data from fuses.
  *
  * @param fuses The fuse controller executing the command.
@@ -137,21 +177,14 @@ int fuse_controller_execute_command (const struct fuse_controller *fuses,
  * be verified in this function.
  * @param data Output for the fuse data.
  *
- * @return 0 if the fuse operation was completed successfully or a negative error code representing
- * the error bits from the fuse controller status register.
+ * @return 0 if the fuse operation was completed successfully or a negative error code
+ * representing the error bits from the fuse controller status register.
  */
 static int fuse_controller_read_data (const struct fuse_controller *fuses, uint16_t address,
 	uint32_t *data)
 {
-	int status;
-
-	status = fuse_controller_execute_command (fuses, FUSE_CONTROLLER_CMD_READ_DATA, address, NULL,
-		0);
-	if (status == 0) {
-		*data = fuses->regs->Data.Data[0];
-	}
-
-	return status;
+	return fuse_controller_execute_command_locked (fuses, FUSE_CONTROLLER_CMD_READ_DATA, address,
+		NULL, 0, data, 1);
 }
 
 /**

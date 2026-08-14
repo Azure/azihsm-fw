@@ -11,7 +11,13 @@ doctest = false
 [dependencies]
 bitfield-struct.workspace = true
 bitfield.workspace = true
+cfg-if.workspace = true
 cortex-m.workspace = true
+mcr-ddi-types.workspace = true
 mcr-error.workspace = true
 mcr-registers.workspace = true
 mcr-types.workspace = true
+
+[features]
+# Feature switches used for optional test hooks and validation
+mcr_test_hooks = []

@@ -27,6 +27,7 @@
 #include "init/init_crashdump.h"
 #include "init/init_crypto.h"
 #include "init/init_ephemeral_key.h"
+#include "init/init_ephemeral_key_monitor.h"
 #include "init/init_firmware.h"
 #include "init/init_flash.h"
 #include "init/init_host.h"
@@ -601,6 +602,12 @@ static void manticore_init (void *unused)
 		goto reset;
 	}
 
+	status = initialize_ephemeral_key_monitor ();
+	if (status != 0) {
+		error_msg = INIT_LOGGING_INIT_EPHEMERAL_KEY_MONITOR;
+		goto reset;
+	}
+
 #ifdef MANTICORE_ENABLE_ACVP
 	status = initialize_acvp ();
 	if (status != 0) {
@@ -659,6 +666,12 @@ static void manticore_init (void *unused)
 	status = start_ephemeral_key_manager ();
 	if (status != 0) {
 		error_msg = INIT_LOGGING_START_EPHEMERAL_KEY_MANAGER;
+		goto reset;
+	}
+
+	status = start_ephemeral_key_monitor ();
+	if (status != 0) {
+		error_msg = INIT_LOGGING_START_EPHEMERAL_KEY_MONITOR;
 		goto reset;
 	}
 

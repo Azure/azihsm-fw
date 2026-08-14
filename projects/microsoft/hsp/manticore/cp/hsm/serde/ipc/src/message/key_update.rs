@@ -107,6 +107,9 @@ pub struct KeyUpdateInfo {
 
     /// Key flag
     pub flag: AesKeyFlag,
+
+    /// Raw AES-256 key data (32 bytes). Populated on Create, zeros on Delete.
+    pub key_data: [u8; 32],
 }
 
 impl Default for KeyUpdateInfo {
@@ -120,6 +123,7 @@ impl Default for KeyUpdateInfo {
             session_id: Default::default(),
             app_id: Default::default(),
             flag: Default::default(),
+            key_data: [0u8; 32],
         }
     }
 }
@@ -201,7 +205,7 @@ mod cfg_test {
         };
 
         let ipc_message = message.encode();
-        assert_eq!(ipc_message.data[0], 0x08000007);
+        assert_eq!(ipc_message.data[0], 0x28000007);
         assert_eq!(ipc_message.data[1], 0x030D0107);
         assert_eq!(ipc_message.data[2..IPC_MESSAGE_LENGTH], [0; 14]);
     }

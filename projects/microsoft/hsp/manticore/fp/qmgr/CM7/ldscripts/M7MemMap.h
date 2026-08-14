@@ -657,8 +657,9 @@ COMPILE_ASSERT(0, "Total code size exceeds memory limit!");
  * CDMA IO abort bit:                    0x8
  * Weight Round Robin (4 bytes)          0x4
  * GCM IV queue (12 bytes * 131 + 16)    0x634
+ * CDMA Vault access sequence lock       0x4
  * CrashDump counter                     0x4
- * Total:                                0x2054
+ * Total:                                0x2058
  */
 #define M7_FPS_CPU12_DFL_1_BUFF_ADDR   FPS_CPU12_SHARE_DTCM_MMIO_START
 #define M7_FPS_CPU12_CDMA_SQ_ENTRY_ADDR (M7_FPS_CPU12_DFL_1_BUFF_ADDR + DFL_1_BUFF_SIZE)
@@ -686,9 +687,12 @@ COMPILE_ASSERT(0, "Total code size exceeds memory limit!");
 #define M7_FPS_CPU12_GCM_IV_QUEUE_ADDR (M7_FPS_CPU12_WEIGHT_ROUND_ROBIN_ADDR + M7_SHARE_WEIGHT_ROUND_ROBIN_SIZE)
 #define M7_FPS_CPU12_SHARE_DTCM_MMIO_END (M7_FPS_CPU12_GCM_IV_QUEUE_ADDR + GCM_IV_QUEUE_SIZE)
 
+#define M7_FPS_CPU12_CDMA_VAULT_SEQ_LOCK_SIZE 4
+#define M7_FPS_CPU12_CDMA_VAULT_SEQ_LOCK (M7_FPS_CPU12_SHARE_DTCM_END - (M7_FPS_CRASH_DUMP_COUNTER_SIZE + M7_FPS_CPU12_CDMA_VAULT_SEQ_LOCK_SIZE))
+
 #define M7_FPS_CPU12_CRASH_DUMP_COUNTER (M7_FPS_CPU12_SHARE_DTCM_END - M7_FPS_CRASH_DUMP_COUNTER_SIZE)
 //#define M7_FPS_CPU12_SHARE_DTCM_MMIO_END (M7_FPS_CPU12_CRASH_DUMP_COUNTER + 10)
-#if M7_FPS_CPU12_SHARE_DTCM_MMIO_END > M7_FPS_CPU12_CRASH_DUMP_COUNTER
+#if M7_FPS_CPU12_SHARE_DTCM_MMIO_END > M7_FPS_CPU12_CDMA_VAULT_SEQ_LOCK
 COMPILE_ASSERT(0, "Total code size exceeds memory limit!");
 #endif
 /**

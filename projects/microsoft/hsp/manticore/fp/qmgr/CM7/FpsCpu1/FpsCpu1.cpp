@@ -1405,25 +1405,32 @@ void fpsCpu1::FpsCpu1ReceiveFPMsgFiber(void* pObj)
 }
 
 #ifdef NEW_AES_KEY_VALIDATION_SUPPORT
+// Validate two XTS keys held in the CDMA vault.
+//   return true  -> the two keys DIFFER (valid for XTS)
+//   return false -> the two keys are IDENTICAL (XTS violation), OR
+//                   either index is out of range.
 ATTR_ALWAYS_INLINE bool fpsCpu1::ValidateKeyVaultArrKey(AesKeyVault_t* keyVaultArr, uint16_t keyIndex1, uint16_t keyIndex2)
 {
-    bool valid = true;
-
     if (keyIndex1 > KEY_INDEX_MAX || keyIndex2 > KEY_INDEX_MAX)
     {
         return false;
     }
 
-    for (int index = 0; (index < AES_KEY_LEN_IN_BYTES) && (keyVaultArr[keyIndex1].key[index] == keyVaultArr[keyIndex2].key[index]); index++)
+    // Compare 8 u32 words (vault is 32-bit-only MMIO). Return on the
+    // first differing word: keys differ -> valid for XTS.
+    const uint32_t* k1 = keyVaultArr[keyIndex1].key;
+    const uint32_t* k2 = keyVaultArr[keyIndex2].key;
+    for (uint32_t w = 0; w < AES_KEY_LEN_IN_WORDS; w++)
     {
-        if (index == (AES_KEY_LEN_IN_BYTES - 1))
+        if (k1[w] != k2[w])
         {
-            //DebugLogLvDbgInfo(cLogCPU1Common, cLogInfo, ("qb handler: same keys at different index, hostKey1:0x%X hostKey2:0x%X\n", ((keyIndex2 << 0x10UL) | (keyIndex1))), "16,16");
-            valid = false;
-            break;
+            return true;
         }
     }
-    return valid;
+
+    // All 8 words matched -> keys are identical -> invalid for XTS.
+    //DebugLogLvDbgInfo(cLogCPU1Common, cLogInfo, ("qb handler: same keys at different index, hostKey1:0x%X hostKey2:0x%X\n", ((keyIndex2 << 0x10UL) | (keyIndex1))), "16,16");
+    return false;
 }
 #endif
 

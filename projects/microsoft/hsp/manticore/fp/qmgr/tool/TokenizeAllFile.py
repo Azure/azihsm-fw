@@ -2,7 +2,7 @@
 # Copyright (c) 2021-2026 Marvell
 
 #!/usr/bin/env python
-import os, fnmatch, sys
+import os, fnmatch, sys, subprocess
 
 """Tool to tokenize all files"""
 """Scan all C/CPP files, and execute Tokenizer for each file"""
@@ -24,7 +24,9 @@ def tokenizeSingleFile(fileFullPath, filename):
     inputFile=fileFullPath
     outputFile=fileFullPath
     tokensFile="./tokenize/" +filename + ".tcpp"
-    ret = os.system("mono ./tool/Tokenizer.exe -mode=tokenize -input=" + inputFile + " -output=" + outputFile + " -tokens=" + tokensFile)
+    ret = subprocess.call(["mono", "./tool/Tokenizer.exe", "-mode=tokenize",
+                           "-input=" + inputFile, "-output=" + outputFile,
+                           "-tokens=" + tokensFile])
     #print ("ret: " + str(ret))
     if (ret):
         sys.exit(1)
@@ -48,7 +50,7 @@ def compare_and_update_files(file1_path, file2_path):
 def py_main():
     print ("[token] tokenize all C/CPP files!")
 
-    ret = os.system("mono ./tool/Tokenizer.exe -mode=parseTokens")
+    ret = subprocess.call(["mono", "./tool/Tokenizer.exe", "-mode=parseTokens"])
     dirList = ["CM7", "hal"]
     filelist = []
     for dirStr in dirList:
@@ -66,7 +68,8 @@ def py_main():
     print ("[token] All C/CPP files tokenized.")
     #generate Tokens.dat
 
-    ret = os.system("mono ./tool/Tokenizer.exe -mode=categoryJson -tokens=./tokenize/Tokens.dat")
+    ret = subprocess.call(["mono", "./tool/Tokenizer.exe", "-mode=categoryJson",
+                           "-tokens=./tokenize/Tokens.dat"])
     if (ret):
         sys.exit(1)
 

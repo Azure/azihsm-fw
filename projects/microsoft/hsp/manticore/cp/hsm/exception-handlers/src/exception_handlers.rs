@@ -384,6 +384,99 @@ unsafe fn gdma_err_irq() {
     loop {}
 }
 
+// Common UCD error handler.
+#[cfg(not(feature = "std"))]
+fn ucd_err_handler(interrupt: Interrupt) {
+    InterruptController::default().disable(interrupt);
+    InterruptController::default().clear(interrupt);
+
+    // IB interrupt cause bit masks
+    const IB_DATA_PATH_ERR: u32 = 1 << 31; // bit 31
+    const DFL_OVRFLW_MASK: u32 = 0x3F << 23; // bits 23-28
+    const DFL_EMPTY_MASK: u32 = 0x3F << 17; // bits 17-22
+    const IQ_SOFT_ERR: u32 = 1 << 13; // bit 13
+    const IB_CQ_FULL_MASK: u32 = 0x1F << 8; // bits 8-12
+    const CQ_FULL_MASK: u32 = 0x1F << 17; // bits 17-21
+
+    match interrupt {
+        Interrupt::ucd_ib_err_irq => {
+            // Clear all IB interrupt 1 enable bits to prevent level-sensitive
+            // conditions from re-firing after warm reset.
+            IoController::clear_ib_interrupt_1_enable();
+
+            let (c0, c1) = IoController::read_ib_error_cause();
+            let cause = c0 | c1;
+
+            // Check data path error (bit 31) first — this is a halting
+            // hardware error that corrupts IB data.
+            if (cause & IB_DATA_PATH_ERR) != 0 {
+                log_admin_error_message!(
+                    "UCD IB Data Path Parity Error. c0=0x{:08x}, c1=0x{:08x}",
+                    c0,
+                    c1
+                );
+            } else if (cause & IQ_SOFT_ERR) != 0 {
+                log_admin_error_message!(
+                    "UCD IB Queue Overflow Error. Fault code: {}",
+                    FailureCode::UcdIbQueueOverflowError as u32
+                );
+            } else if (cause & IB_CQ_FULL_MASK) != 0 {
+                log_admin_error_message!(
+                    "UCD IB Completion Queue Full Error. Fault code: {}",
+                    FailureCode::UcdIbCqFullError as u32
+                );
+            } else if (cause & (DFL_OVRFLW_MASK | DFL_EMPTY_MASK)) != 0 {
+                log_admin_error_message!(
+                    "UCD IB DFL Overflow Error. Fault code: {}",
+                    FailureCode::UcdIbDflOverflowError as u32
+                );
+            } else {
+                log_admin_error_message!("UCD IB error. c0=0x{:08x}, c1=0x{:08x}", c0, c1);
+            }
+        }
+        Interrupt::ucd_ob_err_irq => {
+            // Clear all OB interrupt 1 enable bits to prevent level-sensitive
+            // conditions from re-firing after warm reset.
+            IoController::clear_ob_interrupt_1_enable();
+
+            let (c0, c1) = IoController::read_ob_error_cause();
+            let cause = c0 | c1;
+
+            if (cause & CQ_FULL_MASK) != 0 {
+                log_admin_error_message!(
+                    "UCD OB Queue Full Error. Fault code: {}",
+                    FailureCode::UcdObQueueFullError as u32
+                );
+            } else {
+                log_admin_error_message!("UCD OB error. c0=0x{:08x}, c1=0x{:08x}", c0, c1);
+            }
+        }
+        _ => (),
+    }
+
+    trace!("Disabling tcon_wakeup1_irq");
+    InterruptController::default().disable(Interrupt::tcon_wakeup1_irq);
+
+    trace!("Notifying Crash to other cores");
+    Tcon::fire_wakeup_timer1();
+
+    loop {}
+}
+
+// UCD Inbound error interrupt handler
+#[cfg(not(feature = "std"))]
+#[interrupt]
+unsafe fn ucd_ib_err_irq() {
+    ucd_err_handler(Interrupt::ucd_ib_err_irq);
+}
+
+// UCD Outbound error interrupt handler
+#[cfg(not(feature = "std"))]
+#[interrupt]
+unsafe fn ucd_ob_err_irq() {
+    ucd_err_handler(Interrupt::ucd_ob_err_irq);
+}
+
 // tcon wakeup1 ISR. This ISR is implemented as an assembly trampoline to collect
 // stack frame of the code that was executing at the time the IRS was triggered.
 // The exception frame is passed to the collect_crash_dump_tcon_irq function to

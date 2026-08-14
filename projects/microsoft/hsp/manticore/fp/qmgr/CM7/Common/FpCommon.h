@@ -169,6 +169,8 @@
 #define CHUNK_SIZE_WITH_RETRY(retryTime) (retryTime == 0 ? CHUNK_SIZE : CHUNK_SIZE >> ((0x1UL << (uint32_t)retryTime) + 1))
 
 #define AES_KEY_LEN_IN_BYTES 32
+#define AES_KEY_LEN_IN_WORDS (AES_KEY_LEN_IN_BYTES / sizeof(uint32_t))   // 8 u32 words = 32 bytes
+#define DFL_KEY_STAGING_OFFSET 20  // Byte offset in DFL (CQE) where bulk key is staged for tag correction
 
 //-----------------------------------------------------------------------------
 //  CPU2 static Member Variable Definitions
@@ -624,12 +626,16 @@ typedef struct Ucd_Query_Parameters
 #pragma pack(push)
 #pragma pack(1)
 //AES key vault
+// u32 array (not u8) because the CDMA key vault MMIO region requires
+// 32-bit-only accesses. Using a u32 array makes word-aligned access
+// the natural representation and prevents compilers from emitting
+// STRD/STRB via memcpy/memset on the byte-array form.
 typedef struct AesKeyVault_t
 {
-    uint8_t key[AES_KEY_LEN_IN_BYTES];
+    uint32_t key[AES_KEY_LEN_IN_WORDS];
 } AesKeyVault_t ;
 #pragma pack(pop)
-COMPILE_ASSERT(sizeof(AesKeyVault_t) == (sizeof(uint8_t)*AES_KEY_LEN_IN_BYTES), "Invalid AesKeyVault_t size");
+COMPILE_ASSERT(sizeof(AesKeyVault_t) == (sizeof(uint32_t) * AES_KEY_LEN_IN_WORDS), "Invalid AesKeyVault_t size");
 
 typedef enum
 {

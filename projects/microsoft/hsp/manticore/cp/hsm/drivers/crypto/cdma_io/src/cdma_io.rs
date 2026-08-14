@@ -181,17 +181,18 @@ impl CdmaIoImpl {
         Ok(cdma_io)
     }
 
-    /// Creates a key entry in the CDMA Key Vault for CDMA IO operations
-    /// and returns the AesBulk256KeyId.
+    /// Allocates a key slot in the CDMA Key Vault bitmap for CDMA IO operations
+    /// and returns the AesBulk256KeyId. The actual key bytes are programmed into
+    /// the vault by FP via the KeyUpdate IPC -- this layer is metadata-only.
     ///
     /// # Arguments
     /// * `self` - CDMA IO object
-    /// * `key_slice` - input key slice
+    /// * `key_slice` - input key slice (size validated only; bytes not written here)
     /// * `vault_id` - Vault ID; vault_id = 65 for self test
     ///
     /// # Returns
     ///
-    /// * `Result<AesBulk256KeyId, Err>` - Ok if the operation was successful, error otherwise.
+    /// * `Result<AesBulk256KeyId, Err>` - Ok if a slot was available, error otherwise.
     ///
     fn import_key(&mut self, key_slice: &[u32], vault_id: u8) -> McrResult<AesBulk256KeyId> {
         if key_slice.len() != KEY_SIZE_IN_DWORDS {
@@ -201,12 +202,6 @@ impl CdmaIoImpl {
         for key_index in 0..MAX_KEYS_PER_TABLE {
             if !self.table_availability.bit(key_index) {
                 self.table_availability.set_bit(key_index, true);
-
-                let offset = key_index * KEY_SIZE_IN_DWORDS;
-
-                for (i, item) in key_slice.iter().enumerate() {
-                    self.key_vault[offset + i] = *item;
-                }
 
                 let bulk_key_id = AesBulk256KeyId::new()
                     .with_key_index(key_index as u8)
@@ -237,15 +232,16 @@ impl CdmaIoImpl {
             Err(CdmaIoErr::InvalidKeyIndex)?
         }
 
-        // Clear the key from the key vault
-        let offset = key_index * KEY_SIZE_IN_DWORDS;
-        self.key_vault[offset..offset + KEY_SIZE_IN_DWORDS].zeroize();
+        // FP zeroizes the vault bytes when it processes the KeyUpdate Delete IPC.
+        // This layer only releases the bitmap slot.
         self.table_availability.set_bit(key_index, false);
 
         Ok(())
     }
 
-    /// Clear CDMA Key Vault
+    /// Clear all bitmap slots in the CDMA Key Vault. FP zeroizes the actual
+    /// vault bytes via the KeyUpdate DeleteAll IPC; this layer only resets
+    /// the slot-availability bitmap.
     ///
     /// # Arguments
     /// * `self` - CDMA IO object
@@ -255,7 +251,7 @@ impl CdmaIoImpl {
     /// * `Ok(())` - Ok if the operation was successful
     ///
     fn clear_key_vault(&mut self) -> McrResult<()> {
-        self.key_vault.zeroize();
+        self.table_availability = 0;
 
         Ok(())
     }

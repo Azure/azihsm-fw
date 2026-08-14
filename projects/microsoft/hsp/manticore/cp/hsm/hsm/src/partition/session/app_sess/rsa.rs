@@ -1,15 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 
 use core::cmp::Ordering;
-use mcr_ipc_controller::*;
-use mcr_ipc_message::IpcMessageRsaKeyGen;
-use mcr_ipc_message::RsaKeyGenInfo;
-use mcr_ipc_message::*;
 
 use super::*;
 use crate::error::HsmErr;
 use crate::partition::PkaConvertible;
 use mcr_crypto_sha::*;
+use mcr_types::UnwrappingKeyValidity;
 
 /// RSA 4096 bit public key operation data.
 /// Enumeration to denote the RSA key sizes.
@@ -650,76 +647,31 @@ impl<E: HsmEnvTrait> UserSession<E> {
         Ok(is_valid)
     }
 
-    /// Helper to begin the process of get unwrapping key
-    pub(super) fn begin_get_unwrapping_key_inner(
+    /// Helper to get the unwrapping key.
+    pub(super) fn get_unwrapping_key_inner(
         &self,
-        tag: TagId,
+        _tag: TagId,
         key_id: Option<KeyId>,
-        pfn: PcieFunction,
-    ) -> HsmResult<GetUnwrappingKeyCtx<E>> {
-        // Always acquire the IPC channel before checking if the key is present in the partition
-        let channel_ref = self
-            .state
-            .env()
-            .hsp_ipc_channel()
-            .acquire(tag, ())
-            .ok_or(HsmErr::Pending)?;
-
+        _pfn: PcieFunction,
+    ) -> HsmResult<GetUnwrappingKeyCtx> {
         if let Some(key_id) = key_id {
-            self.get_unwrapping_key_from_vault(channel_ref, key_id)
+            self.get_unwrapping_key_from_vault(key_id)
         } else if self
             .state
             .part_persistent_store_ref()
             .unwrapping_key_bk_valid
+            != UnwrappingKeyValidity::Empty as u8
         {
             Ok(GetUnwrappingKeyCtx {
-                channel_ref: Some(channel_ref),
                 output: Some(self.import_unwrapping_key_from_bk()?),
             })
         } else {
-            self.get_new_unwrapping_key(tag, pfn, channel_ref)
+            Err(HsmErr::PendingKeyGeneration)
         }
     }
 
-    ///  Get new unwrapping key from HSP
-    fn get_new_unwrapping_key(
-        &self,
-        tag: u16,
-        pfn: PcieFunction,
-        channel_ref: HspIpcChannelRef<E>,
-    ) -> Result<GetUnwrappingKeyCtx<E>, HsmErr> {
-        let msg = IpcMessageRsaKeyGen {
-            info: RsaKeyGenInfo {
-                addr: self
-                    .state
-                    .part_persistent_store_ref()
-                    .unwrapping_key_bk
-                    .as_ptr() as u32,
-                pfn,
-                key_type: RsaKeyGenKeyType::Rsa2k,
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        channel_ref
-            .map(|c| c.send_request(tag, msg.encode()))
-            .map_err(|_err| HsmErr::IpcSendFailure)?;
-
-        let unwrapping_key_ctx = GetUnwrappingKeyCtx {
-            channel_ref: Some(channel_ref),
-            output: None,
-        };
-
-        Ok(unwrapping_key_ctx)
-    }
-
     /// Get unwrapping key from key vault
-    fn get_unwrapping_key_from_vault(
-        &self,
-        channel_ref: HspIpcChannelRef<E>,
-        key_id: u16,
-    ) -> Result<GetUnwrappingKeyCtx<E>, HsmErr> {
+    fn get_unwrapping_key_from_vault(&self, key_id: u16) -> Result<GetUnwrappingKeyCtx, HsmErr> {
         let key = self.rsa_key(
             key_id,
             APP_VAULT_ID_FOR_INTERNAL_KEYS,
@@ -732,7 +684,6 @@ impl<E: HsmEnvTrait> UserSession<E> {
         let pub_key = RsaPubKey::from_priv_pka_slice(key_data, RsaSize::Rsa2k)?;
 
         let unwrapping_key_ctx = GetUnwrappingKeyCtx {
-            channel_ref: Some(channel_ref),
             output: Some(GetUnwrappingKeyOut {
                 id: key_id,
                 data: pub_key,
@@ -740,33 +691,6 @@ impl<E: HsmEnvTrait> UserSession<E> {
         };
 
         Ok(unwrapping_key_ctx)
-    }
-
-    /// Helper to end the process of get unwrapping key
-    pub(super) fn end_get_unwrapping_key_inner(
-        &self,
-        ctx: &GetUnwrappingKeyCtx<E>,
-    ) -> HsmResult<GetUnwrappingKeyOut> {
-        let channel_ref = ctx.channel_ref.as_ref().ok_or(HsmErr::InvalidArgument)?;
-
-        let message = channel_ref
-            .map(|c| c.receive_message())
-            .ok_or(HsmErr::IpcResponseError)?;
-        let header =
-            IpcMessageDecoder::decode_header(&message).map_err(|_err| HsmErr::IpcResponseError)?;
-
-        // TODO: update with new IPC status code following IPC status code redesign
-        if header.status() == IpcMessageStatusCode::OperationTimeout.into() {
-            Err(HsmErr::PendingKeyGeneration)?
-        } else if header.status() != 0 {
-            Err(HsmErr::IpcResponseError)?
-        }
-
-        self.state
-            .part_persistent_store_ref()
-            .unwrapping_key_bk_valid = true;
-
-        self.import_unwrapping_key_from_bk()
     }
 
     /// Import unwrapping key from partition persistent store

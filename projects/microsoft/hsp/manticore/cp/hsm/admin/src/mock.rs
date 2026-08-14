@@ -66,8 +66,6 @@ mod controller {
             type AesGcmIvQueue=MockSimplexPipe<AesGcmIV>;
             type AesGcmReqQueue=MockSimplexPipe<AesGcmReqEntry>;
             type AesGcmRespQueue=MockSimplexPipe<AesGcmRespEntry>;
-            type GetBulkKeyReqQueue=MockSimplexPipe<GetBulkKeyReqEntry>;
-            type GetBulkKeyRespQueue=MockSimplexPipe<GetBulkKeyRespEntry>;
             type Rng=MockRng;
 
             fn pcie_cntrl(&self) -> &controller::MockPcieController;
@@ -131,10 +129,6 @@ mod controller {
             fn aes_gcm_req_queue(&self) -> &controller::MockSimplexPipe<AesGcmReqEntry>;
 
             fn aes_gcm_resp_queue(&self) -> &controller::MockSimplexPipe<AesGcmRespEntry>;
-
-            fn get_bulk_key_req_queue(&self) -> &controller::MockSimplexPipe<GetBulkKeyReqEntry>;
-
-            fn get_bulk_key_resp_queue(&self) -> &controller::MockSimplexPipe<GetBulkKeyRespEntry>;
 
             fn rng(&self) -> &controller::MockRng;
 

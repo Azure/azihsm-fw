@@ -319,6 +319,7 @@ impl<E: HsmEnvTrait> DerKeyImportCmd<E> {
             None,
             import_der_key_data.key_type,
             decoded_req.data.key_properties.key_label.as_slice(),
+            None,
         )?;
 
         Ok(())
@@ -383,6 +384,7 @@ impl<E: HsmEnvTrait> DerKeyImportCmd<E> {
                     None,
                     ddi_key_type,
                     decoded_req.data.key_properties.key_label.as_slice(),
+                    None,
                 )?;
             }
             EntryClass::AesXtsBulk | EntryClass::AesGcmBulk | EntryClass::AesGcmBulkUnapproved => {
@@ -393,7 +395,8 @@ impl<E: HsmEnvTrait> DerKeyImportCmd<E> {
                 self.session
                     .end_import_der_aesbulk256_key(aes_bulk256_cmd_data)?;
 
-                let AesBulk256Cmd::DerKeyImport(cdma_key_id, key_id, _) = *aes_bulk256_cmd_data
+                let AesBulk256Cmd::DerKeyImport(cdma_key_id, key_id, _, ref raw_key) =
+                    *aes_bulk256_cmd_data
                 else {
                     return Err(HsmErr::AesBulk256InvalidParameter);
                 };
@@ -419,6 +422,7 @@ impl<E: HsmEnvTrait> DerKeyImportCmd<E> {
                     Some(AesBulk256KeyId::into(cdma_key_id)),
                     entry_class.aes_bulk_ddi_key_type()?,
                     decoded_req.data.key_properties.key_label.as_slice(),
+                    Some(raw_key.as_slice()),
                 )?;
             }
             _ => {
@@ -492,10 +496,15 @@ impl<E: HsmEnvTrait> DerKeyImportCmd<E> {
         bulk_key_id: Option<u16>,
         ddi_key_type: DdiKeyType,
         key_label: &[u8],
+        raw_key: Option<&[u8]>,
     ) -> Result<Option<DmaBuffer<E>>, HsmErr> {
-        let masked_key_len =
+        let masked_key_len = if let Some(key) = raw_key {
             self.session
-                .get_masked_key_len_from_vault(key_label, key_id, data_pub_key)?;
+                .get_masked_bulk_key_len(key_label, key_id, key.len())?
+        } else {
+            self.session
+                .get_masked_key_len_from_vault(key_label, key_id, data_pub_key)?
+        };
 
         let mut resp = self.cmd_resp(
             rev,
@@ -509,12 +518,21 @@ impl<E: HsmEnvTrait> DerKeyImportCmd<E> {
 
         let buf = Some(encode_buf(&resp, &self.heap)?);
 
-        self.session.mask_key_from_vault(
-            key_label,
-            key_id,
-            data_pub_key,
-            resp.data.masked_key.as_mut_slice(),
-        )?;
+        if let Some(key) = raw_key {
+            self.session.mask_bulk_key(
+                key_label,
+                key_id,
+                key,
+                resp.data.masked_key.as_mut_slice(),
+            )?;
+        } else {
+            self.session.mask_key_from_vault(
+                key_label,
+                key_id,
+                data_pub_key,
+                resp.data.masked_key.as_mut_slice(),
+            )?;
+        }
 
         Ok(buf)
     }

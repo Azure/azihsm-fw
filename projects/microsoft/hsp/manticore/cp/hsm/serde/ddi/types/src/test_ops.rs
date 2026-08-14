@@ -93,6 +93,9 @@ pub enum DdiTestAction {
 
     /// Trigger Stack Validation Test (overflow / guard violation)
     TriggerStackValidation = 23,
+
+    /// Trigger UCD Error
+    TriggerUcdError = 24,
 }
 
 /// Test action crash type.
@@ -170,6 +173,29 @@ pub enum DdiTestActionGDMAErrorType {
 
     /// GDMA Completion Queue Error Bit
     GdmaCompletionQueueErrorBit = 4,
+}
+
+/// Test action UCD Error type
+#[cfg_attr(feature = "fuzzing", derive(arbitrary::Arbitrary))]
+#[open_enum]
+#[derive(Debug, Ddi, Copy, Clone, PartialEq, Eq)]
+#[repr(u32)]
+#[ddi(enumeration)]
+pub enum DdiTestActionUCDErrorType {
+    // UCD IB DFL Overflow Error
+    UcdIbDflOverflowError = 1,
+
+    // UCD IB Queue Overflow Error
+    UcdIbQueueOverflowError = 2,
+
+    // UCD OB queue full Error
+    UcdObQueueFullError = 3,
+
+    // UCD IB Data path Parity Error
+    UcdIbDataParityError = 4,
+
+    // UCD IB Completion Queue Full Error
+    UcdIbCqFullError = 5,
 }
 
 /// Test action interrupt type.
@@ -335,6 +361,10 @@ pub struct DdiTestActionReq {
     /// Stack Validation Info
     #[ddi(id = 11)]
     pub stack_validation_info: Option<DdiTestActionStackValidationInfo>,
+
+    /// UCD Error type
+    #[ddi(id = 12)]
+    pub ucd_error_type: Option<DdiTestActionUCDErrorType>,
 }
 
 /// Test - Skip IO Response Structure

@@ -1044,6 +1044,9 @@ impl KeyVaultImpl {
                 attributes.common.flags.set_sign(true);
                 attributes.common.flags.set_verify(true);
             }
+            HmacKeyUsage::Derive => {
+                attributes.common.flags.set_derive(true);
+            }
         }
 
         let key_id = self.key_store.add_entry(
@@ -1390,6 +1393,9 @@ impl KeyVaultImpl {
             HmacKeyUsage::SignVerify => {
                 attributes.common.flags.set_sign(true);
                 attributes.common.flags.set_verify(true);
+            }
+            HmacKeyUsage::Derive => {
+                attributes.common.flags.set_derive(true);
             }
         }
 

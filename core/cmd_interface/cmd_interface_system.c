@@ -156,6 +156,26 @@ int cmd_interface_system_process_request (const struct cmd_interface *intf,
 			status = cerberus_protocol_get_cfm_component_ids (interface->cfm_manager, request);
 			break;
 
+		case CERBERUS_PROTOCOL_GET_MANIFEST_SIZE: {
+			const struct pfm_manager *const pfm_mgr[2] = {
+				interface->pfm_manager_0, interface->pfm_manager_1
+			};
+
+			status = cerberus_protocol_get_manifest_size (interface->cfm_manager,
+				interface->pcd_manager, pfm_mgr, 2, request);
+			break;
+		}
+
+		case CERBERUS_PROTOCOL_EXPORT_MANIFEST: {
+			const struct pfm_manager *const pfm_mgr[2] = {
+				interface->pfm_manager_0, interface->pfm_manager_1
+			};
+
+			status = cerberus_protocol_export_manifest (interface->cfm_manager,
+				interface->pcd_manager, pfm_mgr, 2, request);
+			break;
+		}
+
 		case CERBERUS_PROTOCOL_INIT_FW_UPDATE:
 			status = cerberus_protocol_fw_update_init (interface->control, request);
 			break;
@@ -315,6 +335,10 @@ int cmd_interface_system_process_request (const struct cmd_interface *intf,
 
 		case CERBERUS_PROTOCOL_FORCE_ATTESTATION:
 			status = cerberus_protocol_force_attestation (interface->attestation_req, request);
+			break;
+
+		case CERBERUS_PROTOCOL_FORCE_ATTESTATION_INFO:
+			status = cerberus_protocol_force_attestation_info (interface->attestation_req, request);
 			break;
 
 		default:

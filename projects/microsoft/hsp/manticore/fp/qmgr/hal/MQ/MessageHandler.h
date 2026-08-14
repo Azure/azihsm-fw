@@ -305,6 +305,9 @@ typedef struct CP2FPMsgDataKeyUpdate_t
     uint16_t sessionId; // session ID for the key to be updated
     uint8_t appId; // application ID for the key to be updated
     uint8_t flag; // 0: Persistent, 1: Ephemeral
+    // u32 array (not u8): vault writes need 32-bit-only access; this matches
+    // the source representation to the destination. Wire bytes unchanged.
+    uint32_t keyData[8]; // AES-256 key = 8 u32 words (32 bytes)
     #else
     uint8_t action;  // 0: enable, 1: disable
     #endif

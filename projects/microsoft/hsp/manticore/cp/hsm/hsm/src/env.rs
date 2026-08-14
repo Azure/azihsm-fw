@@ -139,8 +139,6 @@ pub(crate) trait HsmHalTrait: Clone {
     type SoftAesResp: SimplexPipeTrait<SoftAesOffloadResp> + Clone;
     type SelfTestReq: SimplexPipeTrait<SelfTestReqPacket> + Clone;
     type SelfTestResp: SimplexPipeTrait<SelfTestRespPacket> + Clone;
-    type GetBulkKeyReq: SimplexPipeTrait<GetBulkKeyReqEntry> + Clone;
-    type GetBulkKeyResp: SimplexPipeTrait<GetBulkKeyRespEntry> + Clone;
     type MailboxController: MailboxControllerTrait + Clone;
 
     /// Get IO Channel
@@ -241,12 +239,6 @@ pub(crate) trait HsmHalTrait: Clone {
     /// Get the self test response pipe
     fn self_test_resp(&self) -> &Self::SelfTestResp;
 
-    /// Get the bulk key request pipe
-    fn get_bulk_key_req(&self) -> &Self::GetBulkKeyReq;
-
-    /// Get the bulk key response pipe
-    fn get_bulk_key_resp(&self) -> &Self::GetBulkKeyResp;
-
     /// Trigger Self test error notification other cores
     fn notify_self_test_failure(&self, test_id: SelfTest);
 
@@ -292,8 +284,6 @@ pub(crate) struct HsmHal {
     soft_aes_resp: SimplexPipe<SoftAesOffloadResp>,
     self_test_req: SimplexPipe<SelfTestReqPacket>,
     self_test_resp: SimplexPipe<SelfTestRespPacket>,
-    get_bulk_key_req: SimplexPipe<GetBulkKeyReqEntry>,
-    get_bulk_key_resp: SimplexPipe<GetBulkKeyRespEntry>,
 }
 
 impl HsmHalTrait for HsmHal {
@@ -313,8 +303,6 @@ impl HsmHalTrait for HsmHal {
     type SoftAesResp = SimplexPipe<SoftAesOffloadResp>;
     type SelfTestReq = SimplexPipe<SelfTestReqPacket>;
     type SelfTestResp = SimplexPipe<SelfTestRespPacket>;
-    type GetBulkKeyReq = SimplexPipe<GetBulkKeyReqEntry>;
-    type GetBulkKeyResp = SimplexPipe<GetBulkKeyRespEntry>;
     type MailboxController = MailboxController;
 
     /// Get IO Channel
@@ -475,16 +463,6 @@ impl HsmHalTrait for HsmHal {
     /// Get the self test response pipe
     fn self_test_resp(&self) -> &Self::SelfTestResp {
         &self.self_test_resp
-    }
-
-    /// Get the bulk key request pipe
-    fn get_bulk_key_req(&self) -> &Self::GetBulkKeyReq {
-        &self.get_bulk_key_req
-    }
-
-    /// Get the bulk key response pipe
-    fn get_bulk_key_resp(&self) -> &Self::GetBulkKeyResp {
-        &self.get_bulk_key_resp
     }
 
     /// Trigger Self test error notification other cores
@@ -686,18 +664,6 @@ impl HsmHal {
             pi: HsmDtcmMemMap::self_test_resp_pi(),
         });
 
-        let get_bulk_key_req = SimplexPipe::new(SimplexPipeConfig {
-            queue: HsmDtcmMemMap::get_bulk_key_req_queue(),
-            ci: HsmDtcmMemMap::get_bulk_key_req_ci(),
-            pi: HsmDtcmMemMap::get_bulk_key_req_pi(),
-        });
-
-        let get_bulk_key_resp = SimplexPipe::new(SimplexPipeConfig {
-            queue: HsmDtcmMemMap::get_bulk_key_resp_queue(),
-            ci: HsmDtcmMemMap::get_bulk_key_resp_ci(),
-            pi: HsmDtcmMemMap::get_bulk_key_resp_pi(),
-        });
-
         // Check if the HSM is FIPS approved status
         // and set the FIPS certification state in the memory map.
         Self::populate_fips_certification_state()?;
@@ -722,8 +688,6 @@ impl HsmHal {
             soft_aes_resp,
             self_test_req,
             self_test_resp,
-            get_bulk_key_req,
-            get_bulk_key_resp,
         };
 
         // Run the Pre Operation self tests for FIPS
